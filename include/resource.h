@@ -12,8 +12,8 @@
 	#define IDC_STATIC					-1
 #endif
 
-#define VER_FILEVERSION					1,1,0,0
-#define VER_FILEVERSION_STR				"v1.1"
+#define VER_FILEVERSION					1,2,0,0
+#define VER_FILEVERSION_STR				"v1.2"
 #define INTERNAL_NAME					"3ds-multinand"
 #define ORIGINAL_FILENAME				"3ds-multinand.exe"
 #define PRODUCT_NAME					"3DS Multi EmuNAND Creator"

@@ -45,3 +45,6 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+obj/3ds-multinand.o
+obj/resource.o
+obj/winmain.o

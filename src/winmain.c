@@ -329,7 +329,7 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			SendMessage(RefreshButton, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
 			/* Create the "Format EmuNAND" group box, the mapped drives drop-down list and the "Start Format" button */
-			FormatGroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Format EmuNAND"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 180, 290, 50, hWnd, NULL, hInstance, NULL);
+			FormatGroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Format EmuNAND"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 180, 295, 50, hWnd, NULL, hInstance, NULL);
 			SendMessage(FormatGroupBox, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
 			FormatDriveList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 50, 200, 140, 20, hWnd, NULL, hInstance, NULL);
