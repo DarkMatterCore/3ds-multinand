@@ -48,3 +48,4 @@ Temporary Items
 obj/3ds-multinand.o
 obj/resource.o
 obj/winmain.o
+obj/fat32format.o

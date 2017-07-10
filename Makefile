@@ -1,7 +1,7 @@
 # This Makefile will build the MinGW Win32 application.
 
 HEADERS = include/resource.h include/3ds-multinand.h
-OBJS = obj/winmain.o obj/resource.o obj/3ds-multinand.o
+OBJS = obj/winmain.o obj/resource.o obj/fat32format.o obj/3ds-multinand.o
 INCLUDE_DIRS = -I.\include
 
 CC = gcc

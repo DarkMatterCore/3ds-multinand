@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <winioctl.h>
+
+//#define DEBUG_BUILD
 
 #define SECTOR_SIZE			512
 #define MEDIA_UNIT_SIZE		SECTOR_SIZE
@@ -25,13 +28,16 @@
 #define NCSD_MAGIC			0x4E435344							// "NCSD"
 #define DUMMY_DATA			0x0D0A								// Used to generate the 512-bytes dummy header
 #define FAT32_SIGNATURE		0x41615252							// "RRaA"
-#define PARTITION_FAT32_LBA	0x0C								// Set by the Launcher.dat executable during the EmuNAND format
-#define PARTITION_FAT16B	0x06
+#define PARTITION_FAT32_LBA	PARTITION_FAT32_XINT13				// 0x0C - Set by the Launcher.dat executable during the EmuNAND format
+#define PARTITION_FAT16B	PARTITION_HUGE						// 0x06
 #define PARTITION_ALIGN		(4 * 1024 * 1024)					// 4 MB alignment used by EmuNAND9 Tool
+
+#define NAME_LENGTH			32									// Null-character terminated string
 
 #define MAX_CHARACTERS(x)	((sizeof((x))) / (sizeof((x)[0])))	// Returns the number of elements in an array
 #define NAND_NUM_STR(x)		((x) == 1 ? L"st" : ((x) == 2 ? L"nd" : ((x) == 3 ? L"rd" : L"th")))
 #define NAND_TYPE_STR(x)	(((x) == TOSHIBA_NAND || (x) == TOSHIBA_REDNAND) ? L"Toshiba" : (((x) == SAMSUNG_NAND || (x) == SAMSUNG_REDNAND || (x) == N3DS_SAMSUNG_NAND) ? L"Samsung" : L"**Unknown**"))
+#define CAPACITY(x,y)		((x) == 1 ? (!(y) ? 2 : 4) : (((x) == 2 || (x) == 3) ? (!(y) ? 4 : 8) : (!(y) ? 8 : 16)))
 
 #define PTR_HIGH(x)			((int32_t)((x) >> 32))
 #define PTR_LOW(x)			((int32_t)(x))
@@ -41,8 +47,11 @@
 
 int8_t nandnum;
 bool n3ds, is_input, cfw;
+char nand_name[NAME_LENGTH];
 
 int GetTextSize(LPTSTR str);
+int64_t set_file_pointer(HANDLE h, int64_t new_ptr, uint32_t method);
+int WriteReadNANDName(HWND hWndParent, bool read);
 int ParseDrives(HWND hWndParent);
 void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat);
 void ModifyBootBin(wchar_t *fname, HWND hWndParent);
