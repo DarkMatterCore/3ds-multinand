@@ -3,10 +3,11 @@
 #include "resource.h"
 #include "3ds-multinand.h"
 
-static HANDLE g_hThread;
-static DWORD g_dwThreadID;
+static HANDLE g_hThread[2];
+static DWORD g_dwThreadID[2];
 static BOOL dont_close = FALSE;
-static HWND GroupBox = NULL, O3DSRadio = NULL, N3DSRadio = NULL, NANDList = NULL, InjectEmuButton = NULL, InjectRedButton = NULL, ExtractButton = NULL, BootBinButton = NULL, ProgressBar = NULL;
+static HWND ModelGroupBox = NULL, FormatGroupBox = NULL, O3DSRadio = NULL, N3DSRadio = NULL, NANDList = NULL, InjectEmuButton = NULL, InjectRedButton = NULL, ExtractButton = NULL, BootBinButton = NULL, UpdateButton = NULL, StartFormatButton = NULL, ProgressBar = NULL;
+HWND DriveList = NULL;
 
 WPARAM wParamState = 0;
 
@@ -121,6 +122,43 @@ void CenterWindow(HWND hwnd)
 	SetWindowPos(hwnd, NULL, X, Y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
 }
 
+bool isDriveListLocked()
+{
+	wchar_t wstr[30] = {0};
+	SendMessage(DriveList, CB_GETLBTEXT, 0, (LPARAM)wstr);
+	if (wcsncmp(wstr, L"No valid drives available", 25) == 0) return true;
+	return false;
+}
+
+DWORD WINAPI DrivesProc(LPVOID lpParameter)
+{
+	HWND hWndMain = (HWND)lpParameter;
+	
+	SendMessage(DriveList, CB_RESETCONTENT, 0, 0);
+	
+	if (ParseDrives(true, hWndMain) == -1)
+	{
+		SendMessage(DriveList, CB_ADDSTRING, 0, (LPARAM)L"No valid drives available");
+		EnableWindow(DriveList, FALSE);
+		EnableWindow(StartFormatButton, FALSE);
+	} else {
+		/* Verify that the combo box was properly populated */
+		if (SendMessage(DriveList, CB_GETCOUNT, 0, 0) <= 0)
+		{
+			SendMessage(DriveList, CB_RESETCONTENT, 0, 0); // Just in case something really messed up
+			SendMessage(DriveList, CB_ADDSTRING, 0, (LPARAM)L"No valid drives available");
+			EnableWindow(DriveList, FALSE);
+			EnableWindow(StartFormatButton, FALSE);
+		} else {
+			EnableWindow(DriveList, TRUE);
+			EnableWindow(StartFormatButton, TRUE);
+		}
+	}
+	
+	SendMessage(DriveList, CB_SETCURSEL, 0, 0); // Sets the current selection to the first item
+	return 0;
+}
+
 DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 {
 	HWND hWndMain = (HWND)lpParameter;
@@ -163,10 +201,13 @@ DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 		if (IsWindowEnabled(InjectRedButton)) EnableWindow(InjectRedButton, FALSE);
 		EnableWindow(ExtractButton, FALSE);
 		EnableWindow(BootBinButton, FALSE);
+		EnableWindow(DriveList, FALSE);
+		EnableWindow(UpdateButton, FALSE);
+		EnableWindow(StartFormatButton, FALSE);
 		ToggleCloseButton(hWndMain, FALSE);
 		
 		/* Store input values for the operation */
-		nandnum = (SendMessage(NANDList, CB_GETCURSEL, 0, 0) + 1); // The index is zero-based
+		nandnum = (LOWORD(wParamState) == IDB_STARTFORMAT_BUTTON ? 1 : (SendMessage(NANDList, CB_GETCURSEL, 0, 0) + 1)); // The combobox index is zero-based
 		n3ds = (SendMessage(N3DSRadio, BM_GETCHECK, 0, 0) == BST_CHECKED);
 		is_input = (LOWORD(wParamState) != IDB_EXTRACT_BUTTON);
 		cfw = (LOWORD(wParamState) == IDB_INJECTRED_BUTTON);
@@ -175,7 +216,10 @@ DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 		SendMessage(ProgressBar, PBM_SETPOS, 0, 0);
 		
 		/* Do the magic */
-		InjectExtractNAND(ofn.lpstrFile, hWndMain, ProgressBar);
+		InjectExtractNAND(ofn.lpstrFile, hWndMain, ProgressBar, (LOWORD(wParamState) == IDB_STARTFORMAT_BUTTON ? true : false));
+		
+		/* Update the drive list */
+		if (LOWORD(wParamState) == IDB_STARTFORMAT_BUTTON) g_hThread[1] = CreateThread(NULL, 0, DrivesProc, hWndMain, 0, &g_dwThreadID[1]);
 		
 		/* Enable window controls */
 		EnableWindow(O3DSRadio, TRUE);
@@ -185,6 +229,12 @@ DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 		if (SendMessage(O3DSRadio, BM_GETCHECK, 0, 0) == BST_CHECKED) EnableWindow(InjectRedButton, TRUE);
 		EnableWindow(ExtractButton, TRUE);
 		EnableWindow(BootBinButton, TRUE);
+		EnableWindow(UpdateButton, TRUE);
+		if (LOWORD(wParamState) != IDB_STARTFORMAT_BUTTON && !isDriveListLocked())
+		{
+			EnableWindow(DriveList, TRUE);
+			EnableWindow(StartFormatButton, TRUE);
+		}
 		ToggleCloseButton(hWndMain, TRUE);
 	}
 	
@@ -210,8 +260,8 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			hFont = CreateFont(lf.lfHeight, lf.lfWidth, lf.lfEscapement, lf.lfOrientation, lf.lfWeight, lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut, lf.lfCharSet, lf.lfOutPrecision, lf.lfClipPrecision, lf.lfQuality, lf.lfPitchAndFamily, lf.lfFaceName);
 			
 			/* Create the "Nintendo 3DS Model" group box and the "Old 3DS" & "New 3DS" circle options */
-			GroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Nintendo 3DS Model"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 30, 160, 50, hWnd, NULL, hInstance, NULL);
-			SendMessage(GroupBox, WM_SETFONT, (WPARAM)hFont, TRUE);
+			ModelGroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Nintendo 3DS Model"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 30, 160, 50, hWnd, NULL, hInstance, NULL);
+			SendMessage(ModelGroupBox, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
 			O3DSRadio = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Old 3DS"), WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON, 20, 50, 70, 20, hWnd, (HMENU)IDB_O3DS_RADIO, hInstance, NULL);
 			SendMessage(O3DSRadio, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -244,8 +294,22 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			BootBinButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Modify boot.bin"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 165, 120, 100, 20, hWnd, (HMENU)IDB_BOOTBIN_BUTTON, hInstance, NULL);
 			SendMessage(BootBinButton, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
+			/* Create the "Format New EmuNAND" group box, the mapped drives drop-down list, and the "Update" and "Start Format" buttons */
+			FormatGroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Format New EmuNAND"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 150, 290, 50, hWnd, NULL, hInstance, NULL);
+			SendMessage(FormatGroupBox, WM_SETFONT, (WPARAM)hFont, TRUE);
+			
+			DriveList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 20, 170, 140, 20, hWnd, NULL, hInstance, NULL);
+			SendMessage(DriveList, WM_SETFONT, (WPARAM)hFont, TRUE);
+			g_hThread[1] = CreateThread(NULL, 0, DrivesProc, hWnd, 0, &g_dwThreadID[1]); // Thread process to populate the drop-down list
+			
+			UpdateButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Update"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 170, 170, 50, 20, hWnd, (HMENU)IDB_UPDATE_BUTTON, hInstance, NULL);
+			SendMessage(UpdateButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+			
+			StartFormatButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Start format"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 230, 170, 60, 20, hWnd, (HMENU)IDB_STARTFORMAT_BUTTON, hInstance, NULL);
+			SendMessage(StartFormatButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+			
 			/* Create the progress bar */
-			ProgressBar = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_VISIBLE | WS_CHILD | PBS_SMOOTH, 10, 150, 295, 20, hWnd, NULL, hInstance, NULL);
+			ProgressBar = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_VISIBLE | WS_CHILD | PBS_SMOOTH, 10, 210, 295, 20, hWnd, NULL, hInstance, NULL);
 			SendMessage(ProgressBar, PBM_SETSTEP, 1, 0);
 			
 			/* Center the program window */
@@ -290,11 +354,12 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				case IDB_INJECTEMU_BUTTON:
 				case IDB_INJECTRED_BUTTON:
 				case IDB_EXTRACT_BUTTON:
+				case IDB_STARTFORMAT_BUTTON:
 					/* Copy the current wParam value */
 					wParamState = wParam;
 					
 					/* Create process thread */
-					g_hThread = CreateThread(NULL, 0, MultiNANDProc, hWnd, 0, &g_dwThreadID);
+					g_hThread[0] = CreateThread(NULL, 0, MultiNANDProc, hWnd, 0, &g_dwThreadID[0]);
 					break;
 				case IDB_BOOTBIN_BUTTON:
 				{
@@ -334,6 +399,10 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					
 					break;
 				}
+				case IDB_UPDATE_BUTTON:
+					/* Create process thread */
+					g_hThread[1] = CreateThread(NULL, 0, DrivesProc, hWnd, 0, &g_dwThreadID[1]);
+					break;
 				default:
 					break;
 			}
@@ -388,7 +457,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	
 	// Create instance of main window.
-	hWnd = CreateWindowEx(0, MainWndClass, MainWndClass, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 320, 210, NULL, NULL, hInstance, NULL);
+	hWnd = CreateWindowEx(0, MainWndClass, MainWndClass, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 320, 270, NULL, NULL, hInstance, NULL);
 	
 	// Error if window creation failed.
 	if (!hWnd)

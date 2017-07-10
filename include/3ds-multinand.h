@@ -29,7 +29,7 @@
 #define PARTITION_FAT16		0x06
 
 #define MAX_CHARACTERS(x)	((sizeof((x))) / (sizeof((x)[0])))	// Returns the number of elements in an array
-#define NAND_NUM_STR(x)		((x) == 1 ? L"first" : ((x) == 2 ? L"second" : ((x) == 3 ? L"third" : L"fourth")))
+#define NAND_NUM_STR(x)		((x) == 1 ? L"st" : ((x) == 2 ? L"nd" : ((x) == 3 ? L"rd" : L"th")))
 #define NAND_TYPE_STR(x)	(((x) == TOSHIBA_NAND || (x) == TOSHIBA_REDNAND) ? L"Toshiba" : (((x) == SAMSUNG_NAND || (x) == SAMSUNG_REDNAND || (x) == N3DS_SAMSUNG_NAND) ? L"Samsung" : L"**Unknown**"))
 
 #define PTR_HIGH(x)			((int32_t)((x) >> 32))
@@ -42,5 +42,6 @@ int8_t nandnum;
 bool n3ds, is_input, cfw;
 
 int GetTextSize(LPTSTR str);
-void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress);
+int ParseDrives(bool isThread, HWND hWndParent);
+void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool isFormat);
 void ModifyBootBin(wchar_t *fname, HWND hWndParent);
