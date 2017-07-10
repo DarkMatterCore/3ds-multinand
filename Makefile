@@ -8,8 +8,8 @@ CC = gcc
 LDFLAGS = -s -Wl,--subsystem,windows -lcomctl32 -lcomdlg32 -lgdi32
 RC = windres
 
-# FIX: Compile with -std=gnu99 instead of -std=c99 to avoid problems with _wfopen
-CFLAGS = -O3 -std=gnu99 -D UNICODE -D _UNICODE -D _WIN32_IE=0x0500 -D WINVER=0x500 -Wall
+#FIX: Compile with -std=gnu99 instead of -std=c99 to avoid problems with _wfopen
+CFLAGS = -O3 -std=gnu99 -D UNICODE -D _UNICODE -D NTDDI_VERSION=0x06000000 -D _WIN32_WINNT=0x0600 -D WINVER=0x0600 -D _WIN32_IE=0x0700 -Wall
 
 EXE_EXT = .exe
 PROJECT_NAME = 3ds-multinand

@@ -4,21 +4,23 @@
 #include "3ds-multinand.h"
 
 //#define DEBUG_BUILD
+#define MAX_TAG		3
+#define TAG_LENGTH	11
 
-extern HWND DriveList; // Mapped drives drop-down list from winmain.c
+extern HWND EmuNANDDriveList, FormatDriveList; // Mapped drives drop-down lists from winmain.c
+extern HWND ProgressBar;
 
 /* To do: add compatibility with strings from more flashcards */
-const uint8_t MAGIC_STR[3][11] = {	{ 0x47, 0x41, 0x54, 0x45, 0x57, 0x41, 0x59, 0x4E, 0x41, 0x4E, 0x44 }, // "GATEWAYNAND"
-									{ 0x4D, 0x54, 0x43, 0x41, 0x52, 0x44, 0x5F, 0x4E, 0x41, 0x4E, 0x44 }, // "MTCARD_NAND"
-									{ 0x33, 0x44, 0x53, 0x43, 0x41, 0x52, 0x44, 0x4E, 0x41, 0x4E, 0x44 }  // "3DSCARDNAND"
-								 };
+const uint8_t MAGIC_STR[MAX_TAG][TAG_LENGTH] =	{	{ 0x47, 0x41, 0x54, 0x45, 0x57, 0x41, 0x59, 0x4E, 0x41, 0x4E, 0x44 }, // "GATEWAYNAND"
+													{ 0x4D, 0x54, 0x43, 0x41, 0x52, 0x44, 0x5F, 0x4E, 0x41, 0x4E, 0x44 }, // "MTCARD_NAND"
+													{ 0x33, 0x44, 0x53, 0x43, 0x41, 0x52, 0x44, 0x4E, 0x41, 0x4E, 0x44 }  // "3DSCARDNAND"
+												};
 
 static wchar_t wc[512] = {0};
 static wchar_t msg_info[512] = {0};
 
 wchar_t *SingleDrive;
 static wchar_t devname[30] = {0};
-static uint8_t mbr_str = 0;
 static HANDLE drive = INVALID_HANDLE_VALUE;
 
 int GetTextSize(LPTSTR str)
@@ -26,13 +28,6 @@ int GetTextSize(LPTSTR str)
 	int i = 0;
 	while (str[i] != '\0') i++;
 	return i;
-}
-
-wchar_t *GetWC(const char *c, uint8_t len)
-{
-	if (len > 512) return NULL;
-	mbstowcs(wc, c, len);
-	return wc;
 }
 
 int64_t set_file_pointer(HANDLE h, int64_t new_ptr, uint32_t method)
@@ -101,7 +96,7 @@ bool write_dummy_data(HANDLE SDcard, int64_t offset)
 	return false;
 }
 
-int ParseDrives(bool isThread, HWND hWndParent)
+int ParseDrives(HWND hWndParent)
 {
 	int i, dev_res;
 	int64_t cur_ptr = -1;
@@ -110,8 +105,6 @@ int ParseDrives(bool isThread, HWND hWndParent)
 #ifdef DEBUG_BUILD
 	uint32_t drivenum = 0;
 #endif
-	
-	if (!isThread) mbr_str = 0;
 	
 	/* Get the total amount of available logical drives */
 	wchar_t LogicalDrives[MAX_PATH] = {0};
@@ -157,7 +150,7 @@ int ParseDrives(bool isThread, HWND hWndParent)
 									drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 									if (drive != INVALID_HANDLE_VALUE)
 									{
-										/* Check if this is actually the SD card that contains the EmuNAND */
+										/* Check if this SD card contains an EmuNAND */
 										/* Just for safety, let's set the file pointer to zero before attempting to read */
 										cur_ptr = set_file_pointer(drive, 0, FILE_BEGIN);
 										if (cur_ptr != -1)
@@ -168,44 +161,63 @@ int ParseDrives(bool isThread, HWND hWndParent)
 											{
 												bool contains_tag = false;
 												
-												for (i = 0; i < 3; i++)
+												for (i = 0; i < MAX_TAG; i++)
 												{
-													if (memcmp(buf, &(MAGIC_STR[i][0]), 11) == 0)
+													if (memcmp(buf, &(MAGIC_STR[i][0]), TAG_LENGTH) == 0)
 													{
 														contains_tag = true;
-														if (!isThread)
-														{
-															/* Found it! */
-															mbr_str = (i + 1);
-#ifdef DEBUG_BUILD
-															drivenum = diskExtents.Extents[0].DiskNumber;
-#endif
-														}
 														break;
 													}
 												}
-												
-												if (!isThread && contains_tag)
-												{
-													break;
-												} else
-												if (isThread && !contains_tag)
-												{
-													/* Add this drive to the drop-down list */
-													wchar_t drive_str[20];
-													_snwprintf(drive_str, 20, L"%c:\\ (Disk #%u)\0", SingleDrive[0], (unsigned int)diskExtents.Extents[0].DiskNumber);
-													SendMessage(DriveList, CB_ADDSTRING, 0, (LPARAM)drive_str);
-												} else {
 #ifdef DEBUG_BUILD
+												if (!contains_tag)
+												{
 													_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"MBR signature (logical drive \"%c:\"):\n", SingleDrive[0]);
-													for (i = 0; i < 11; i++)
+													for (i = 0; i < TAG_LENGTH; i++)
 													{
 														wchar_t byte[4] = {0};
 														_snwprintf(byte, 3, L"%02X ", buf[i]);
 														wcscat(msg_info, byte);
 													}
 													MessageBox(hWndParent, msg_info, TEXT("Debug info"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+												}
 #endif
+												/* Check if we already added this physical drive to the list */
+												bool found = false;
+												wchar_t wstr[30] = {0}, tmp[30] = {0};
+												wchar_t *pwc;
+												
+												int list_cnt = SendMessage(contains_tag ? EmuNANDDriveList : FormatDriveList, CB_GETCOUNT, 0, 0);
+												if (list_cnt > 0)
+												{
+													uint32_t drivenum = 0;
+													
+													for (i = 0; i < list_cnt; i++)
+													{
+														SendMessage(contains_tag ? EmuNANDDriveList : FormatDriveList, CB_GETLBTEXT, (WPARAM)i, (LPARAM)wstr);
+														
+														pwc = wcschr(wstr, L'(');
+														_snwprintf(tmp, 30, L"%ls", wstr + (int)(pwc - wstr));
+														swscanf(tmp, L"(Disk #%u)", &drivenum);
+														
+														if (drivenum == (unsigned int)diskExtents.Extents[0].DiskNumber)
+														{
+															found = true;
+															break;
+														}
+													}
+												}
+												
+												if (list_cnt <= 0 || (list_cnt > 0 && !found))
+												{
+													/* Add this drive to the drop-down list */
+													_snwprintf(wstr, 30, L"%c: (Disk #%u)\0", SingleDrive[0], (unsigned int)diskExtents.Extents[0].DiskNumber);
+													SendMessage(contains_tag ? EmuNANDDriveList : FormatDriveList, CB_ADDSTRING, 0, (LPARAM)wstr);
+												} else {
+													/* Update the drive info in the drop-down list */
+													_snwprintf(tmp, 30, L"%.*ls, %c: %ls\0", (int)(pwc - wstr - 1), wstr, SingleDrive[0], wstr + (int)(pwc - wstr));
+													SendMessage(contains_tag ? EmuNANDDriveList : FormatDriveList, CB_DELETESTRING, (WPARAM)i, 0);
+													SendMessage(contains_tag ? EmuNANDDriveList : FormatDriveList, CB_INSERTSTRING, (WPARAM)i, (LPARAM)tmp);
 												}
 											} else {
 #ifdef DEBUG_BUILD
@@ -215,58 +227,43 @@ int ParseDrives(bool isThread, HWND hWndParent)
 											}
 										} else {
 #ifdef DEBUG_BUILD
-											if (!isThread)
-											{
-												_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
-												MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-											}
+											_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
+											MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 										}
 									} else {
 #ifdef DEBUG_BUILD
-										if (!isThread)
-										{
-											_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
-											MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-										}
+										_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
+										MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 									}
 								}
 							} else {
 #ifdef DEBUG_BUILD
-								if (!isThread)
-								{
-									_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't retrieve disk volume information for \"%s\".\ndev_res: %d / res: %u.", devname, dev_res, res);
-									MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-								}
+								_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't retrieve disk volume information for \"%s\".\ndev_res: %d / res: %u.", devname, dev_res, res);
+								MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 							}
 						} else {
 #ifdef DEBUG_BUILD
-							if (!isThread)
-							{
-								_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Logical drive \"%c:\" not ready (empty drive?).", SingleDrive[0]);
-								MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-							}
+							_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Logical drive \"%c:\" not ready (empty drive?).", SingleDrive[0]);
+							MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 						}
 					} else {
 #ifdef DEBUG_BUILD
-						if (!isThread)
-						{
-							_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't open logical drive \"%s\" (%d).", devname, GetLastError());
-							MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-						}
-#endif
-					}
-				} else {
-					if (!isThread && res == DRIVE_UNKNOWN)
-					{
-#ifdef DEBUG_BUILD
-						_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Unknown drive type for \"%c:\".", SingleDrive[0]);
+						_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't open logical drive \"%s\" (%d).", devname, GetLastError());
 						MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 					}
+				} else {
+#ifdef DEBUG_BUILD
+					if (res == DRIVE_UNKNOWN)
+					{
+						_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Unknown drive type for \"%c:\".", SingleDrive[0]);
+						MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+					}
+#endif
 				}
 			}
 			
@@ -280,29 +277,15 @@ int ParseDrives(bool isThread, HWND hWndParent)
 			/* Get the next drive */
 			SingleDrive += GetTextSize(SingleDrive) + 1;
 		}
-		
-		if (!isThread && drive == INVALID_HANDLE_VALUE)
-		{
-			MessageBox(hWndParent, TEXT("Unable to identify the SD card that contains the EmuNAND."), TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-			return -1;
-		}
 	} else {
-		if (!isThread) MessageBox(hWndParent, TEXT("Couldn't parse logical drive strings."), TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+		MessageBox(hWndParent, TEXT("Couldn't parse logical drive strings."), TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		return -1;
 	}
-	
-#ifdef DEBUG_BUILD
-	if (!isThread)
-	{
-		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Found %s SD card!\nLogical drive: %s.\nPhysical drive number: %u.", GetWC((char*)(&(MAGIC_STR[mbr_str - 1][0])), 11), SingleDrive, drivenum);
-		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
-	}
-#endif
 	
 	return 0;
 }
 
-void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool isFormat)
+void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 {
 	int i, dev_res;
 	uint32_t res;
@@ -316,33 +299,30 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 	int64_t fatsector = (!n3ds ? ((int64_t)O3DS_FS_BASE_SECTOR * nandnum) : ((int64_t)N3DS_FS_BASE_SECTOR * nandnum));
 	int64_t nandsect = (!n3ds ? (SECTOR_SIZE + ((int64_t)O3DS_FS_BASE_SECTOR * (nandnum - 1))) : (SECTOR_SIZE + ((int64_t)N3DS_FS_BASE_SECTOR * (nandnum - 1))));
 	
-	if (!isFormat)
+	uint32_t drivenum = 0;
+	wchar_t wstr[30] = {0}, tmp[30] = {0};
+	
+	SendMessage(isFormat ? FormatDriveList : EmuNANDDriveList, CB_GETLBTEXT, (WPARAM)SendMessage(isFormat ? FormatDriveList : EmuNANDDriveList, CB_GETCURSEL, 0, 0), (LPARAM)wstr);
+#ifdef DEBUG_BUILD
+	_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Parsed string: \"%ls\".", wstr);
+	MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+#endif
+	swscanf(wstr, L"%c:", &SingleDrive[0]);
+	wchar_t *pwc = wcschr(wstr, L'(');
+	_snwprintf(tmp, 30, L"%ls", wstr + (int)(pwc - wstr));
+	swscanf(tmp, L"(Disk #%u)", &drivenum);
+#ifdef DEBUG_BUILD
+	_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Parsed drive number: %u.\nParsed drive letter: %c.", drivenum, SingleDrive[0]);
+	MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+#endif
+	/* Open physical drive */
+	_snwprintf(devname, MAX_CHARACTERS(devname), L"\\\\.\\PhysicalDrive%u", drivenum);
+	drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (drive == INVALID_HANDLE_VALUE)
 	{
-		if (ParseDrives(false, hWndParent) == -1) goto out;
-	} else {
-		mbr_str = 1; // "GATEWAYNAND"
-		uint32_t drivenum = 0;
-		wchar_t wstr[30] = {0};
-		
-		SendMessage(DriveList, CB_GETLBTEXT, (WPARAM)SendMessage(DriveList, CB_GETCURSEL, 0, 0), (LPARAM)wstr);
-#ifdef DEBUG_BUILD
-		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Parsed string: \"%ls\".", wstr);
-		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
-#endif
-		swscanf(wstr, L"%c:\\ (Disk #%u)", &SingleDrive[0], &drivenum);
-#ifdef DEBUG_BUILD
-		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Parsed drive number: %u.\nParsed drive letter: %c.", drivenum, SingleDrive[0]);
-		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
-#endif
-		/* Open physical drive */
-		_snwprintf(devname, MAX_CHARACTERS(devname), L"\\\\.\\PhysicalDrive%u", drivenum);
-		drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (drive == INVALID_HANDLE_VALUE)
-		{
-			_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
-			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-			goto out;
-		}
+		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
+		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+		goto out;
 	}
 	
 	/* Get disk geometry */
@@ -393,10 +373,10 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 	dev_res = DeviceIoControl(drive, IOCTL_DISK_GET_DRIVE_LAYOUT_EX, NULL, 0, DriveLayout, DriveLayoutLen, (PDWORD)&res, NULL);
 	if (dev_res)
 	{
-		if (DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT32_LBA || DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT32 || DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT16)
+		if ((isFormat && DriveLayout->PartitionStyle != PARTITION_STYLE_MBR) || DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT32 || DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT32_LBA || DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT_16 || DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT16B)
 		{
 			/* Only use FAT16 if the SD card capacity is <= 4 GB or if the partition was already FAT16 */
-			bool is_fat16 = (DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT16 || ((drive_sz / 1000000) <= 4096));
+			bool is_fat16 = (DriveLayout->PartitionStyle == PARTITION_STYLE_MBR ? (DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT_16 || DriveLayout->PartitionEntry[0].Mbr.PartitionType == PARTITION_FAT16B || ((drive_sz / 1000000) <= 4096)) : ((drive_sz / 1000000) <= 4096));
 			
 			if (nandnum > 1 || isFormat)
 			{
@@ -422,7 +402,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 							DriveLayout->PartitionEntry[0].PartitionLength.QuadPart = (drive_sz - fatsector);
 							DriveLayout->PartitionEntry[0].PartitionNumber = 1;
 							
-							DriveLayout->PartitionEntry[0].Mbr.PartitionType = (is_fat16 ? PARTITION_FAT16 : PARTITION_FAT32_LBA);
+							DriveLayout->PartitionEntry[0].Mbr.PartitionType = (is_fat16 ? PARTITION_FAT16B : PARTITION_FAT32_LBA);
 							DriveLayout->PartitionEntry[0].Mbr.BootIndicator = FALSE;
 							DriveLayout->PartitionEntry[0].Mbr.RecognizedPartition = 1;
 							DriveLayout->PartitionEntry[0].Mbr.HiddenSectors = 0;
@@ -437,7 +417,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 								MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 								char format_cmd[64] = {0};
-								snprintf(format_cmd, MAX_CHARACTERS(format_cmd), "FORMAT %c: /Y /FS:%s /V:%.11s /Q /X", SingleDrive[0], (is_fat16 ? "FAT" : "FAT32"), (char*)(&(MAGIC_STR[mbr_str - 1][0])));
+								snprintf(format_cmd, MAX_CHARACTERS(format_cmd), "FORMAT %c: /Y /FS:%s /V:%.11s /Q /X", SingleDrive[0], (is_fat16 ? "FAT" : "FAT32"), (char*)(&(MAGIC_STR[0][0]))); // Always use the GATEWAYNAND tag
 								
 								CloseHandle(drive);
 								
@@ -461,7 +441,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 												if (dev_res && res == SECTOR_SIZE)
 												{
 													/* Replace the first 11 bytes in the buffer with the "GATEWAYNAND" tag */
-													for (i = 0; i < 11; i++) buf[i] = MAGIC_STR[0][i];
+													for (i = 0; i < TAG_LENGTH; i++) buf[i] = MAGIC_STR[0][i];
 													
 													/* Go back to sector #0 */
 													cur_ptr = set_file_pointer(drive, 0, FILE_BEGIN);
@@ -533,7 +513,12 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 				}
 			}
 		} else {
-			_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Invalid partition type: %02X.\nYou should report this to me ASAP.", DriveLayout->PartitionEntry[0].Mbr.PartitionType);
+			if (DriveLayout->PartitionStyle != PARTITION_STYLE_MBR)
+			{
+				_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"The partition style used by the SD card (GPT) isn't supported.\nPlease reformat the card using the MBR partition style.");
+			} else {
+				_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Invalid partition type: %02X.\nYou should report this to me ASAP.", DriveLayout->PartitionEntry[0].Mbr.PartitionType);
+			}
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			goto out;
 		}
@@ -633,15 +618,15 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 		/* This is because the order in which the data is written varies between each type of NAND */
 		
 		/* EmuNAND: the first 0x200 bytes (NCSD header) are stored **after** the NAND dump. The NAND dump starts to be written */
-		/*			from offset 0x200 to the SD card */
+		/*			from offset 0x200 to the SD card. Used by Gateway and modern CFWs, like rxTools, CakesFW and ReiNand */
 		
-		/* RedNAND: used by the Custom Firmware (CFW). It is written to the SD card 'as is', beginning with the NCSD header and */
+		/* RedNAND: used by the Palantine CFW. It is written to the SD card 'as is', beginning with the NCSD header and */
 		/*			following with the rest of the NAND data */
 		
 		/* Usually, a dummy footer follows afterwards. This applies for both types of NANDs, and serves to indicate the appropiate */
 		/* NAND flash capacity of the 3DS console */
 		
-		/* The CFW is so far the only loading method that supports using a custom boot sector (different to 1) */
+		/* The Palantine CFW is so far the only loading method that supports using a custom boot sector (different to 1) */
 		/* This is expected to change in the near future */
 		
 		for (i = 0; i <= 2; i++)
@@ -818,7 +803,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 	uint8_t *nand_buf = malloc(NAND_BUF_SIZE);
 	
 	/* Set the progress bar range */
-	SendMessage(hWndProgress, PBM_SETRANGE, 0, MAKELPARAM(0, (nandsize / NAND_BUF_SIZE)));
+	SendMessage(ProgressBar, PBM_SETRANGE, 0, MAKELPARAM(0, (nandsize / NAND_BUF_SIZE)));
 	
 	/* The real magic begins here */
 	for (cnt = 0; cnt < nandsize; cnt += NAND_BUF_SIZE)
@@ -873,7 +858,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress, bool 
 		}
 		
 		/* Update the progress bar */
-		SendMessage(hWndProgress, PBM_STEPIT, 0, 0);
+		SendMessage(ProgressBar, PBM_STEPIT, 0, 0);
 	}
 	
 	free(nand_buf);
@@ -923,6 +908,7 @@ void ModifyBootBin(wchar_t *fname, HWND hWndParent)
 			/* Original value:	0x00000001 (sector #1) */
 			/* Second RedNAND:	0x00200001 (sector #2097153) */
 			/* Third RedNAND:	0x00400001 (sector #4194305) */
+			/* Fourth RedNAND:	0x00600001 (sector #6291457) */
 			
 			fseek(boot_bin, BOOT_BIN_SECTOR, SEEK_SET);
 			
