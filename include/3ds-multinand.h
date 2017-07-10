@@ -14,8 +14,10 @@
 
 #define O3DS_TOSHIBA_NAND	0x3AF00000									// 943 MiB
 #define O3DS_SAMSUNG_NAND	0x3BA00000									// 954 MiB
+
 #define N3DS_SAMSUNG_NAND	0x4D800000									// 1240 MiB
-#define N3DS_UNKNOWN_NAND	0x76000000									// 1888 MiB
+#define N3DS_UNKNOWN_NAND	0x74800000									// 1864 MiB
+#define N3DS_TOSHIBA_NAND	0x76000000									// 1888 MiB
 
 #define round_up(x,y)		((x) + (((y) - ((x) % (y))) % (y)))			// Aligns 'x' bytes to a 'y' bytes boundary
 #define round4MB(x)			round_up((x), 4 * 1024 * 1024)				// 4 MB alignment used by EmuNAND9 Tool
@@ -25,7 +27,7 @@
 #define O3DS_MINIMUM_FAT	round4MB(O3DS_TOSHIBA_NAND + SECTOR_SIZE)	// FILE_BEGIN + 943 MiB + 512 bytes + 4 MB alignment
 
 #define N3DS_LEGACY_FAT		0x80000000									// FILE_BEGIN + 2 GiB. Used by Gateway
-#define N3DS_DEFAULT_FAT	round4MB(N3DS_UNKNOWN_NAND + SECTOR_SIZE)	// FILE_BEGIN + 1888 MiB + 512 bytes + 4 MB alignment
+#define N3DS_DEFAULT_FAT	round4MB(N3DS_TOSHIBA_NAND + SECTOR_SIZE)	// FILE_BEGIN + 1888 MiB + 512 bytes + 4 MB alignment
 #define N3DS_MINIMUM_FAT	round4MB(N3DS_SAMSUNG_NAND + SECTOR_SIZE)	// FILE_BEGIN + 1240 MiB + 512 bytes + 4 MB alignment
 
 #define NCSD_MAGIC			0x4E435344									// "NCSD"
@@ -39,7 +41,7 @@
 
 #define MAX_CHARACTERS(x)	((sizeof((x))) / (sizeof((x)[0])))			// Returns the number of elements in an array
 #define NAND_NUM_STR(x)		((x) == 1 ? L"st" : ((x) == 2 ? L"nd" : ((x) == 3 ? L"rd" : L"th")))
-#define NAND_TYPE_STR(x)	(((x) == O3DS_TOSHIBA_NAND || (x) == (O3DS_TOSHIBA_NAND + SECTOR_SIZE)) ? L"Toshiba" : (((x) == O3DS_SAMSUNG_NAND || (x) == (O3DS_SAMSUNG_NAND + SECTOR_SIZE) || (x) == N3DS_SAMSUNG_NAND) ? L"Samsung" : L"**Unknown**"))
+#define NAND_TYPE_STR(x)	(((x) == O3DS_TOSHIBA_NAND || (x) == (O3DS_TOSHIBA_NAND + SECTOR_SIZE) || (x) == (N3DS_TOSHIBA_NAND)) ? L"Toshiba" : (((x) == O3DS_SAMSUNG_NAND || (x) == (O3DS_SAMSUNG_NAND + SECTOR_SIZE) || (x) == N3DS_SAMSUNG_NAND) ? L"Samsung" : L"**Unknown**"))
 #define FAT_LAYOUT_STR(x)	(((x) == O3DS_LEGACY_FAT || (x) == N3DS_LEGACY_FAT) ? L"Legacy" : (((x) == O3DS_DEFAULT_FAT || (x) == N3DS_DEFAULT_FAT) ? L"Default" : L"Minimum"))
 #define CAPACITY(x,y)		((x) == 1 ? 2 : ((x) == 2 ? 4 : ((x) == 3 ? (!(y) ? 4 : 8) : 8)))
 
@@ -57,6 +59,7 @@ typedef struct {
 	int64_t fat_offset;
 	int64_t fat_layout;
 	bool n3ds;
+	bool n2ds;
 	int8_t emunand_cnt;
 	int64_t emunand_sizes[MAX_NAND_NUM];
 	bool rednand[MAX_NAND_NUM];

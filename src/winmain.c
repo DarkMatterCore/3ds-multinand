@@ -135,15 +135,11 @@ bool isTextboxUsable(HWND Textbox)
 		return false;
 	}
 	
-	int i;
-	for (i = 1; i <= MAX_NAND_NUM; i++)
+	_snwprintf(wstr, NAME_LENGTH, L"EmuNAND #%d not available", nandnum);
+	if (wcsncmp(name, wstr, NAME_LENGTH) == 0)
 	{
-		_snwprintf(wstr, NAME_LENGTH, L"EmuNAND #%d not available", i);
-		if (wcsncmp(name, wstr, NAME_LENGTH) == 0)
-		{
-			has_nand = FALSE;
-			return false;
-		}
+		has_nand = FALSE;
+		return false;
 	}
 	
 	has_nand = TRUE;
@@ -214,7 +210,7 @@ DWORD WINAPI NANDNameProc(LPVOID lpParameter)
 		
 		/* Disable the textbox in case an exception occurred. Also disable the "Extract NAND" button if no EmuNAND is available */
 		EnableWindow(ExtractButton, has_nand);
-		EnableWindow(RemoveNandButton, has_nand);
+		EnableWindow(RemoveNandButton, (!has_nand && nandnum == 1) ? TRUE : has_nand);
 		EnableWindow(NameTextbox, usable_box);
 		EnableWindow(WriteNameButton, usable_box);
 	}
@@ -497,7 +493,7 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			TextOut(hdc, 10, 65, TEXT("EmuNAND SD Card:"), 16);
 			TextOut(hdc, 10, 95, TEXT("EmuNAND Name:"), 13);
 			TextOut(hdc, 0, 0, TEXT(COPYRIGHT), GetTextSize(TEXT(COPYRIGHT)));
-			TextOut(hdc, WINDOW_WIDTH - 30, 0, TEXT(VER_FILEVERSION_STR), GetTextSize(TEXT(VER_FILEVERSION_STR)));
+			TextOut(hdc, WINDOW_WIDTH - 35, 0, TEXT(VER_FILEVERSION_STR), GetTextSize(TEXT(VER_FILEVERSION_STR)));
 			EndPaint(hWnd, &ps);
 			break;
 		}
