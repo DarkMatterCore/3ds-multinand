@@ -1,0 +1,42 @@
+#include <windows.h>
+#include "resource.h"
+
+// Win32 application icon.
+IDI_APPICON ICON "3ds-multinand.ico"
+
+// Application manifest.
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "3ds-multinand.manifest"
+
+// Executable version information.
+VS_VERSION_INFO		VERSIONINFO
+FILEVERSION			VER_FILEVERSION
+PRODUCTVERSION		VER_FILEVERSION
+FILEFLAGSMASK		VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+	FILEFLAGS		VS_FF_DEBUG | VS_FF_PRERELEASE
+#else
+	FILEFLAGS		0
+#endif
+FILEOS				VOS_NT_WINDOWS32
+FILETYPE			VFT_APP
+FILESUBTYPE			VFT2_UNKNOWN
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904E4"
+		BEGIN
+			VALUE "CompanyName", AUTHOR
+			VALUE "FileDescription", PRODUCT_NAME
+			VALUE "FileVersion", VER_FILEVERSION_STR
+			VALUE "InternalName", INTERNAL_NAME
+			VALUE "LegalCopyright", COPYRIGHT
+			VALUE "OriginalFilename", ORIGINAL_FILENAME
+			VALUE "ProductName", PRODUCT_NAME
+			VALUE "ProductVersion", VER_FILEVERSION_STR
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x409, 1252
+	END
+END
