@@ -8,13 +8,14 @@
 #define IDB_NANDNUMBER_LIST				108
 #define IDB_EMUNANDDRIVE_LIST			109
 #define IDB_EMUNANDNAME_BUTTON			110
+#define IDB_REMOVENAND_BUTTON			111
 
 #ifndef IDC_STATIC
 	#define IDC_STATIC					-1
 #endif
 
-#define VER_FILEVERSION					1,4,0,0
-#define VER_FILEVERSION_STR				"v1.4"
+#define VER_FILEVERSION					1,5,0,0
+#define VER_FILEVERSION_STR				"v1.5"
 #define INTERNAL_NAME					"3ds-multinand"
 #define ORIGINAL_FILENAME				"3ds-multinand.exe"
 #define PRODUCT_NAME					"3DS Multi EmuNAND Creator"

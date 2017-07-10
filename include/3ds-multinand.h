@@ -30,7 +30,7 @@
 
 #define NCSD_MAGIC			0x4E435344									// "NCSD"
 #define DUMMY_DATA			0x0D0A										// Used to generate the 512-bytes dummy header/footer
-#define FAT32_SIGNATURE		0x41615252									// "RRaA"
+#define FAT32_SIGNATURE		0x41615252									// Byteswapped "RRaA"
 #define PARTITION_FAT32_LBA	PARTITION_FAT32_XINT13						// 0x0C - Set by the Launcher.dat executable during the EmuNAND format
 #define PARTITION_FAT16B	PARTITION_HUGE								// 0x06
 #define GIBIBYTE			(1024 * 1024 * 1024)						// Used with the ParseDrives procedure
@@ -68,6 +68,7 @@ char nand_name[NAME_LENGTH];
 
 int GetTextSize(LPTSTR str);
 int64_t set_file_pointer(HANDLE h, int64_t new_ptr, uint32_t method);
+void RemoveNAND(HWND hWndParent);
 int WriteReadNANDName(HWND hWndParent, bool read);
-int ParseDrives(HWND hWndParent);
+int ParseDrives(HWND hWndParent, bool check_fixed);
 void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat);
