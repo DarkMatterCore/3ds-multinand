@@ -4,15 +4,13 @@
 #include "3ds-multinand.h"
 
 #define WINDOW_WIDTH	320
-#define WINDOW_HEIGHT	360
+#define WINDOW_HEIGHT	330
 
-static HANDLE g_hThread[3];
-static DWORD g_dwThreadID[3];
-static bool thread[3] = {false};
 static BOOL dont_close = FALSE;
-static HWND ModelGroupBox = NULL, FormatGroupBox = NULL, O3DSRadio = NULL, N3DSRadio = NULL, NANDList = NULL, InjectEmuButton = NULL, InjectRedButton = NULL, ExtractButton = NULL, BootBinButton = NULL, RefreshButton = NULL, StartFormatButton = NULL, NameTextbox = NULL, WriteNameButton = NULL;
+static HWND FormatGroupBox = NULL, NANDList = NULL, InjectEmuButton = NULL, InjectRedButton = NULL, ExtractButton = NULL, RefreshButton = NULL, StartFormatButton = NULL, NameTextbox = NULL, WriteNameButton = NULL;
 HWND EmuNANDDriveList = NULL, FormatDriveList = NULL, ProgressBar = NULL;
 
+HANDLE g_hThread[3];
 WPARAM wParamState = 0;
 
 void ToggleCloseButton(HWND hwnd, BOOL bState)
@@ -126,17 +124,34 @@ void CenterWindow(HWND hwnd)
 	SetWindowPos(hwnd, NULL, X, Y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
 }
 
+bool isTextboxLocked(HWND Textbox)
+{
+	wchar_t name[NAME_LENGTH] = {0}, wstr[NAME_LENGTH] = {0};
+	SendMessage(Textbox, WM_GETTEXT, NAME_LENGTH, (LPARAM)name);
+	
+	if (wcsncmp(name, L"Not compatible with EmuNAND9", 28) == 0) return true;
+	
+	int i;
+	for (i = 1; i <= MAX_NAND_NUM; i++)
+	{
+		_snwprintf(wstr, NAME_LENGTH, L"EmuNAND #%d not available", i);
+		if (wcsncmp(name, wstr, NAME_LENGTH) == 0) return true;
+	}
+	
+	return false;
+}
+
 DWORD WINAPI NANDNameProc(LPVOID lpParameter)
 {
-	thread[2] = true;
 	HWND hWndMain = (HWND)lpParameter;
 	
 	wchar_t name[NAME_LENGTH] = {0};
 	bool read = (LOWORD(wParamState) != IDB_EMUNANDNAME_BUTTON);
 	
-	/* Store input values for the operation */
+	/* Store input value for the operation */
 	nandnum = (SendMessage(NANDList, CB_GETCURSEL, 0, 0) + 1); // The combo box index is zero-based
-	n3ds = (SendMessage(N3DSRadio, BM_GETCHECK, 0, 0) == BST_CHECKED);
+	
+	memset(nand_name, 0x00, NAME_LENGTH);
 	
 	if (!read)
 	{
@@ -145,18 +160,20 @@ DWORD WINAPI NANDNameProc(LPVOID lpParameter)
 		wcstombs(nand_name, name, NAME_LENGTH - 1);
 	}
 	
-	if (WriteReadNANDName(hWndMain, read) < 0) goto out;
+	int ret = WriteReadNANDName(hWndMain, read);
 	
-	if (read)
+	if (read && ret == 0)
 	{
 		/* Display the string stored in the SD card */
 		mbstowcs(name, nand_name, NAME_LENGTH - 1);
 		SendMessage(NameTextbox, WM_SETTEXT, 0, (LPARAM)name);
+		
+		/* Disable the textbox in case an exception occurred */
+		EnableWindow(NameTextbox, isTextboxLocked(NameTextbox) ^ 1);
+		EnableWindow(WriteNameButton, isTextboxLocked(NameTextbox) ^ 1);
 	}
 	
-out:
-	thread[2] = false;
-	return 0;
+	ExitThread(0);
 }
 
 bool isDriveListLocked(HWND List)
@@ -169,12 +186,9 @@ bool isDriveListLocked(HWND List)
 
 DWORD WINAPI DrivesProc(LPVOID lpParameter)
 {
-	thread[1] = true;
 	HWND hWndMain = (HWND)lpParameter;
 	
-	/* Check if the MultiNANDProc thread is still running */
-	bool nandThread = thread[0];
-	if (!nandThread) EnableWindow(RefreshButton, FALSE);
+	if (IsWindowEnabled(RefreshButton)) EnableWindow(RefreshButton, FALSE);
 	
 	SendMessage(EmuNANDDriveList, CB_RESETCONTENT, 0, 0);
 	SendMessage(FormatDriveList, CB_RESETCONTENT, 0, 0);
@@ -186,7 +200,7 @@ DWORD WINAPI DrivesProc(LPVOID lpParameter)
 		
 		EnableWindow(EmuNANDDriveList, FALSE);
 		EnableWindow(InjectEmuButton, FALSE);
-		if (IsWindowEnabled(InjectRedButton)) EnableWindow(InjectRedButton, FALSE);
+		EnableWindow(InjectRedButton, FALSE);
 		EnableWindow(ExtractButton, FALSE);
 		SendMessage(NameTextbox, WM_SETTEXT, 0, (LPARAM)L"\0");
 		EnableWindow(NameTextbox, FALSE);
@@ -200,9 +214,10 @@ DWORD WINAPI DrivesProc(LPVOID lpParameter)
 		{
 			SendMessage(EmuNANDDriveList, CB_RESETCONTENT, 0, 0); // Just in case something really messed up
 			SendMessage(EmuNANDDriveList, CB_ADDSTRING, 0, (LPARAM)L"No valid drives available");
+			
 			EnableWindow(EmuNANDDriveList, FALSE);
 			EnableWindow(InjectEmuButton, FALSE);
-			if (IsWindowEnabled(InjectRedButton)) EnableWindow(InjectRedButton, FALSE);
+			EnableWindow(InjectRedButton, FALSE);
 			EnableWindow(ExtractButton, FALSE);
 			SendMessage(NameTextbox, WM_SETTEXT, 0, (LPARAM)L"\0");
 			EnableWindow(NameTextbox, FALSE);
@@ -210,16 +225,15 @@ DWORD WINAPI DrivesProc(LPVOID lpParameter)
 		} else {
 			EnableWindow(EmuNANDDriveList, TRUE);
 			EnableWindow(InjectEmuButton, TRUE);
-			if (SendMessage(O3DSRadio, BM_GETCHECK, 0, 0) == BST_CHECKED) EnableWindow(InjectRedButton, TRUE);
+			EnableWindow(InjectRedButton, TRUE);
 			EnableWindow(ExtractButton, TRUE);
-			EnableWindow(NameTextbox, TRUE);
-			EnableWindow(WriteNameButton, TRUE);
 		}
 		
 		if (SendMessage(FormatDriveList, CB_GETCOUNT, 0, 0) <= 0)
 		{
 			SendMessage(FormatDriveList, CB_RESETCONTENT, 0, 0); // Just in case something really messed up
 			SendMessage(FormatDriveList, CB_ADDSTRING, 0, (LPARAM)L"No valid drives available");
+			
 			EnableWindow(FormatDriveList, FALSE);
 			EnableWindow(StartFormatButton, FALSE);
 		} else {
@@ -231,21 +245,13 @@ DWORD WINAPI DrivesProc(LPVOID lpParameter)
 	SendMessage(EmuNANDDriveList, CB_SETCURSEL, 0, 0); // Sets the current selection to the first item
 	SendMessage(FormatDriveList, CB_SETCURSEL, 0, 0); // Sets the current selection to the first item
 	
-	if (IsWindowEnabled(EmuNANDDriveList) && thread[2] == false)
-	{
-		/* Read the EmuNAND name */
-		g_hThread[2] = CreateThread(NULL, 0, NANDNameProc, hWndMain, 0, &g_dwThreadID[2]);
-	}
+	EnableWindow(RefreshButton, TRUE);
 	
-	if (!nandThread) EnableWindow(RefreshButton, TRUE);
-	
-	thread[1] = false;
-	return 0;
+	ExitThread(0);
 }
 
 DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 {
-	thread[0] = true;
 	HWND hWndMain = (HWND)lpParameter;
 	
 	OPENFILENAME ofn;
@@ -279,16 +285,13 @@ DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 	if (fopened)
 	{
 		/* Disable window controls */
-		EnableWindow(O3DSRadio, FALSE);
-		EnableWindow(N3DSRadio, FALSE);
 		EnableWindow(NANDList, FALSE);
 		EnableWindow(EmuNANDDriveList, FALSE);
 		EnableWindow(NameTextbox, FALSE);
 		EnableWindow(WriteNameButton, FALSE);
 		EnableWindow(InjectEmuButton, FALSE);
-		if (IsWindowEnabled(InjectRedButton)) EnableWindow(InjectRedButton, FALSE);
+		EnableWindow(InjectRedButton, FALSE);
 		EnableWindow(ExtractButton, FALSE);
-		EnableWindow(BootBinButton, FALSE);
 		EnableWindow(RefreshButton, FALSE);
 		EnableWindow(FormatDriveList, FALSE);
 		EnableWindow(StartFormatButton, FALSE);
@@ -296,7 +299,6 @@ DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 		
 		/* Store input values for the operation */
 		nandnum = (LOWORD(wParamState) == IDB_STARTFORMAT_BUTTON ? 1 : (SendMessage(NANDList, CB_GETCURSEL, 0, 0) + 1)); // The combo box index is zero-based
-		n3ds = (SendMessage(N3DSRadio, BM_GETCHECK, 0, 0) == BST_CHECKED);
 		is_input = (LOWORD(wParamState) != IDB_EXTRACT_BUTTON);
 		cfw = (LOWORD(wParamState) == IDB_INJECTRED_BUTTON);
 		
@@ -304,33 +306,86 @@ DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 		SendMessage(ProgressBar, PBM_SETPOS, 0, 0);
 		
 		/* Do the magic */
-		InjectExtractNAND(ofn.lpstrFile, hWndMain, (LOWORD(wParamState) == IDB_STARTFORMAT_BUTTON ? true : false));
+		InjectExtractNAND(ofn.lpstrFile, hWndMain, (LOWORD(wParamState) == IDB_STARTFORMAT_BUTTON));
 		
-		/* Update the drop-down lists */
-		if (LOWORD(wParamState) == IDB_STARTFORMAT_BUTTON) g_hThread[1] = CreateThread(NULL, 0, DrivesProc, hWndMain, 0, &g_dwThreadID[1]);
+		if (LOWORD(wParamState) != IDB_STARTFORMAT_BUTTON)
+		{
+			/* Enable the window controls otherwise affected by the DrivesProc thread */
+			EnableWindow(EmuNANDDriveList, TRUE);
+			EnableWindow(InjectEmuButton, TRUE);
+			EnableWindow(InjectRedButton, TRUE);
+			EnableWindow(ExtractButton, TRUE);
+			EnableWindow(RefreshButton, TRUE);
+			
+			/* Disable the textbox in case an exception occurred */
+			EnableWindow(NameTextbox, isTextboxLocked(NameTextbox) ^ 1);
+			EnableWindow(WriteNameButton, isTextboxLocked(NameTextbox) ^ 1);
+			
+			/* Disable the format drop-down list if there are no valid drives */
+			EnableWindow(FormatDriveList, isDriveListLocked(FormatDriveList) ^ 1);
+			EnableWindow(StartFormatButton, isDriveListLocked(FormatDriveList) ^ 1);
+		}
 		
 		/* Enable window controls */
-		EnableWindow(O3DSRadio, TRUE);
-		EnableWindow(N3DSRadio, TRUE);
 		EnableWindow(NANDList, TRUE);
-		EnableWindow(EmuNANDDriveList, TRUE);
-		EnableWindow(NameTextbox, TRUE);
-		EnableWindow(WriteNameButton, TRUE);
-		EnableWindow(InjectEmuButton, TRUE);
-		if (SendMessage(O3DSRadio, BM_GETCHECK, 0, 0) == BST_CHECKED) EnableWindow(InjectRedButton, TRUE);
-		EnableWindow(ExtractButton, TRUE);
-		EnableWindow(BootBinButton, TRUE);
-		EnableWindow(RefreshButton, TRUE);
-		if (LOWORD(wParamState) != IDB_STARTFORMAT_BUTTON && !isDriveListLocked(FormatDriveList))
-		{
-			EnableWindow(FormatDriveList, TRUE);
-			EnableWindow(StartFormatButton, TRUE);
-		}
 		ToggleCloseButton(hWndMain, TRUE);
 	}
 	
-	thread[0] = false;
-	return 0;
+	ExitThread(0);
+}
+
+// Taken from http://stackoverflow.com/questions/546483/how-can-i-update-a-win32-app-gui-while-it-is-waiting-for-another-program-to-fini
+void WaitForThread(HANDLE hThread, HWND hwnd)
+{
+	DWORD result;
+	MSG msg;
+	
+	while ((result = WaitForSingleObject(hThread, THREAD_MS_WAIT)) == WAIT_TIMEOUT)
+	{
+		while (PeekMessage(&msg, hwnd, 0, 0, PM_NOREMOVE))
+		{
+			if (GetMessage(&msg, NULL, 0, 0) > 0)
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+		}
+	}
+}
+
+void CallNameThread(HWND hwnd)
+{
+	/* Create process thread */
+	g_hThread[2] = CreateThread(NULL, 0, NANDNameProc, hwnd, 0, NULL);
+	
+	/* Wait for the thread to terminate */
+	WaitForThread(g_hThread[2], hwnd);
+	
+	/* Close thread handle */
+	CloseHandle(g_hThread[2]);
+	g_hThread[2] = NULL;
+}
+
+void CallDrivesThread(HWND hwnd)
+{
+	/* Create process thread */
+	g_hThread[1] = CreateThread(NULL, 0, DrivesProc, hwnd, 0, NULL);
+	
+	/* Wait for the thread to terminate */
+	WaitForThread(g_hThread[1], hwnd);
+	
+	/* Close thread handle */
+	CloseHandle(g_hThread[1]);
+	g_hThread[1] = NULL;
+	
+	if (IsWindowEnabled(EmuNANDDriveList))
+	{
+		/* Update wParamState value */
+		wParamState = (WPARAM)IDB_REFRESH_BUTTON;
+		
+		/* Read the EmuNAND name */
+		CallNameThread(hwnd);
+	}
 }
 
 bool CALLBACK SetFont(HWND child, LPARAM font)
@@ -353,14 +408,8 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			/* Initialize current program instance */
 			hInstance = GetModuleHandle(NULL);
 			
-			/* Create the "Nintendo 3DS Model" group box and the "Old 3DS" & "New 3DS" circle options */
-			ModelGroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Nintendo 3DS Model"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 30, 160, 50, hWnd, NULL, hInstance, NULL);
-			O3DSRadio = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Old 3DS"), WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON, 20, 50, 70, 20, hWnd, (HMENU)IDB_O3DS_RADIO, hInstance, NULL);
-			N3DSRadio = CreateWindowEx(0, TEXT("BUTTON"), TEXT("New 3DS"), WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON, 90, 50, 70, 20, hWnd, (HMENU)IDB_N3DS_RADIO, hInstance, NULL);
-			SendMessage(O3DSRadio, BM_SETCHECK, (WPARAM)BST_CHECKED, 0); // Checks the "Old 3DS" option
-			
 			/* Create the "NAND Number" drop-down list */
-			NANDList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 190, 55, 100, 20, hWnd, (HMENU)IDB_NANDNUMBER_LIST, hInstance, NULL);
+			NANDList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 130, 30, 160, 20, hWnd, (HMENU)IDB_NANDNUMBER_LIST, hInstance, NULL);
 			for (int i = 1; i <= MAX_NAND_NUM; i++)
 			{
 				wchar_t num_str[2];
@@ -370,27 +419,26 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			SendMessage(NANDList, CB_SETCURSEL, 0, 0); // Sets the current selection to the first item
 			
 			/* Create the "EmuNAND SD Card" drop-down list */
-			EmuNANDDriveList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 130, 90, 160, 20, hWnd, (HMENU)IDB_EMUNANDDRIVE_LIST, hInstance, NULL);
+			EmuNANDDriveList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 130, 60, 160, 20, hWnd, (HMENU)IDB_EMUNANDDRIVE_LIST, hInstance, NULL);
 			
 			/* Create the "EmuNAND Name" textbox */
-			NameTextbox = CreateWindowEx(WS_EX_CLIENTEDGE, TEXT("EDIT"), NULL, WS_VISIBLE | WS_CHILD | ES_LEFT | ES_AUTOHSCROLL, 130, 120, 160, 20, hWnd, (HMENU)IDB_EMUNANDNAME_TEXTBOX, hInstance, NULL);
+			NameTextbox = CreateWindowEx(WS_EX_CLIENTEDGE, TEXT("EDIT"), NULL, WS_VISIBLE | WS_CHILD | ES_LEFT | ES_AUTOHSCROLL, 130, 90, 160, 20, hWnd, (HMENU)IDB_EMUNANDNAME_TEXTBOX, hInstance, NULL);
 			SendMessage(NameTextbox, EM_SETLIMITTEXT, NAME_LENGTH - 1, 0); // Limit text input
 			
-			/* Create the "Inject EmuNAND", "Inject RedNAND", "Extract NAND", "Modify boot.bin", "Write EmuNAND name" and "Refresh drives" buttons */
-			InjectEmuButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject EmuNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 150, 130, 20, hWnd, (HMENU)IDB_INJECTEMU_BUTTON, hInstance, NULL);
-			InjectRedButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject RedNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 160, 150, 130, 20, hWnd, (HMENU)IDB_INJECTRED_BUTTON, hInstance, NULL);
-			ExtractButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Extract NAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 180, 130, 20, hWnd, (HMENU)IDB_EXTRACT_BUTTON, hInstance, NULL);
-			BootBinButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Modify boot.bin"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 160, 180, 130, 20, hWnd, (HMENU)IDB_BOOTBIN_BUTTON, hInstance, NULL);
-			WriteNameButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Write EmuNAND name"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 210, 130, 20, hWnd, (HMENU)IDB_EMUNANDNAME_BUTTON, hInstance, NULL);
-			RefreshButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Refresh drives"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 160, 210, 130, 20, hWnd, (HMENU)IDB_REFRESH_BUTTON, hInstance, NULL);
+			/* Create the "Inject EmuNAND", "Inject RedNAND", "Extract NAND", "Write EmuNAND name" and "Refresh drives" buttons */
+			InjectEmuButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject EmuNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 120, 130, 20, hWnd, (HMENU)IDB_INJECTEMU_BUTTON, hInstance, NULL);
+			InjectRedButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject RedNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 160, 120, 130, 20, hWnd, (HMENU)IDB_INJECTRED_BUTTON, hInstance, NULL);
+			ExtractButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Extract NAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 150, 130, 20, hWnd, (HMENU)IDB_EXTRACT_BUTTON, hInstance, NULL);
+			WriteNameButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Write EmuNAND name"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 160, 150, 130, 20, hWnd, (HMENU)IDB_EMUNANDNAME_BUTTON, hInstance, NULL);
+			RefreshButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Refresh drives"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 85, 180, 130, 20, hWnd, (HMENU)IDB_REFRESH_BUTTON, hInstance, NULL);
 			
 			/* Create the "Format EmuNAND" group box, the mapped drives drop-down list and the "Start Format" button */
-			FormatGroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Format EmuNAND"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 240, 295, 50, hWnd, NULL, hInstance, NULL);
-			FormatDriveList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 20, 260, 160, 20, hWnd, NULL, hInstance, NULL);
-			StartFormatButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Start format"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 190, 260, 100, 20, hWnd, (HMENU)IDB_STARTFORMAT_BUTTON, hInstance, NULL);
+			FormatGroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Format EmuNAND"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 210, 295, 50, hWnd, NULL, hInstance, NULL);
+			FormatDriveList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 20, 230, 160, 20, hWnd, NULL, hInstance, NULL);
+			StartFormatButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Start format"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 190, 230, 100, 20, hWnd, (HMENU)IDB_STARTFORMAT_BUTTON, hInstance, NULL);
 			
 			/* Create the progress bar */
-			ProgressBar = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_VISIBLE | WS_CHILD | PBS_SMOOTH, 10, 300, 295, 20, hWnd, NULL, hInstance, NULL);
+			ProgressBar = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_VISIBLE | WS_CHILD | PBS_SMOOTH, 10, 270, 295, 20, hWnd, NULL, hInstance, NULL);
 			SendMessage(ProgressBar, PBM_SETSTEP, 1, 0);
 			
 			/* Initialize font */
@@ -398,11 +446,11 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			hFont = CreateFont(lf.lfHeight, lf.lfWidth, lf.lfEscapement, lf.lfOrientation, lf.lfWeight, lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut, lf.lfCharSet, lf.lfOutPrecision, lf.lfClipPrecision, lf.lfQuality, lf.lfPitchAndFamily, lf.lfFaceName);
 			EnumChildWindows(hWnd, (WNDENUMPROC)SetFont, (LPARAM)hFont);
 			
-			/* Thread process to populate the drop-down lists */
-			g_hThread[1] = CreateThread(NULL, 0, DrivesProc, hWnd, 0, &g_dwThreadID[1]);
-			
 			/* Center the program window */
 			CenterWindow(hWnd);
+			
+			/* Thread process to populate the drop-down lists */
+			CallDrivesThread(hWnd);
 			
 			break;
 		}
@@ -426,9 +474,9 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			SelectObject(hdc, hFont);
 			SetTextColor(hdc, 0);
 			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 190, 40, TEXT("NAND Number:"), 12);
-			TextOut(hdc, 20, 95, TEXT("EmuNAND SD Card:"), 16);
-			TextOut(hdc, 20, 125, TEXT("EmuNAND Name:"), 13);
+			TextOut(hdc, 20, 35, TEXT("NAND Number:"), 12);
+			TextOut(hdc, 20, 65, TEXT("EmuNAND SD Card:"), 16);
+			TextOut(hdc, 20, 95, TEXT("EmuNAND Name:"), 13);
 			TextOut(hdc, 0, 0, TEXT(COPYRIGHT), GetTextSize(TEXT(COPYRIGHT)));
 			TextOut(hdc, 290, 0, TEXT(VER_FILEVERSION_STR), GetTextSize(TEXT(VER_FILEVERSION_STR)));
 			EndPaint(hWnd, &ps);
@@ -437,12 +485,6 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		case WM_COMMAND:
 			switch (LOWORD(wParam))
 			{
-				case IDB_N3DS_RADIO:
-					if (IsWindowEnabled(InjectRedButton)) EnableWindow(InjectRedButton, FALSE);
-					break;
-				case IDB_O3DS_RADIO:
-					if (!IsWindowEnabled(InjectRedButton) && !isDriveListLocked(EmuNANDDriveList)) EnableWindow(InjectRedButton, TRUE);
-					break;
 				case IDB_INJECTEMU_BUTTON:
 				case IDB_INJECTRED_BUTTON:
 				case IDB_EXTRACT_BUTTON:
@@ -451,60 +493,32 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					wParamState = wParam;
 					
 					/* Create process thread */
-					g_hThread[0] = CreateThread(NULL, 0, MultiNANDProc, hWnd, 0, &g_dwThreadID[0]);
-					break;
-				case IDB_BOOTBIN_BUTTON:
-				{
-					OPENFILENAME ofn;
-					wchar_t filename[512] = {0};
-					DWORD fpos = 0, fext = 0;
+					g_hThread[0] = CreateThread(NULL, 0, MultiNANDProc, hWnd, 0, NULL);
 					
-					ZeroMemory(&ofn, sizeof(ofn));
+					/* Wait for the thread to terminate */
+					WaitForThread(g_hThread[0], hWnd);
 					
-					ofn.lStructSize = sizeof(OPENFILENAME);
-					ofn.hwndOwner = hWnd;
-					ofn.hInstance = NULL;
-					ofn.lpstrFilter = TEXT("Palantine CFW boot.bin file (*.bin)\0*.bin\0\0");
-					ofn.lpstrCustomFilter = NULL;
-					ofn.nMaxCustFilter = 0;
-					ofn.nFilterIndex = 0;
-					ofn.lpstrFile = filename;
-					ofn.nMaxFile = 512;
-					ofn.lpstrFileTitle = NULL;
-					ofn.nMaxFileTitle = 0;
-					ofn.lpstrInitialDir = NULL;
-					ofn.lpstrTitle = TEXT("Select the CFW boot.bin file to modify");
-					ofn.Flags = (OFN_DONTADDTORECENT | OFN_NONETWORKBUTTON | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST);
-					ofn.nFileOffset = fpos;
-					ofn.nFileExtension = fext;
-					ofn.lpstrDefExt = TEXT("bin");
-					ofn.lCustData = 0;
-					ofn.lpfnHook = NULL;
-					ofn.lpTemplateName = NULL;
+					/* Close thread handle */
+					CloseHandle(g_hThread[0]);
+					g_hThread[0] = NULL;
 					
-					BOOL fopened = GetOpenFileName(&ofn);
-					if (fopened)
-					{
-						nandnum = (SendMessage(NANDList, CB_GETCURSEL, 0, 0) + 1); // The index is zero-based
-						ModifyBootBin(ofn.lpstrFile, hWnd);
-					}
+					/* Update the drop-down lists */
+					CallDrivesThread(hWnd);
 					
 					break;
-				}
 				case IDB_REFRESH_BUTTON:
-					/* Create process thread */
-					g_hThread[1] = CreateThread(NULL, 0, DrivesProc, hWnd, 0, &g_dwThreadID[1]);
+					CallDrivesThread(hWnd);
 					break;
 				case IDB_NANDNUMBER_LIST:
 				case IDB_EMUNANDDRIVE_LIST:
 				case IDB_EMUNANDNAME_BUTTON:
-					if ((IsWindowEnabled(EmuNANDDriveList) && ((LOWORD(wParam) == IDB_NANDNUMBER_LIST || LOWORD(wParam) == IDB_EMUNANDDRIVE_LIST) && HIWORD(wParam) == CBN_SELCHANGE)) || LOWORD(wParam) == IDB_EMUNANDNAME_BUTTON)
+					if (LOWORD(wParam) == IDB_EMUNANDNAME_BUTTON || ((LOWORD(wParam) == IDB_EMUNANDDRIVE_LIST || (LOWORD(wParam) == IDB_NANDNUMBER_LIST && IsWindowEnabled(EmuNANDDriveList))) && HIWORD(wParam) == CBN_SELCHANGE))
 					{
 						/* Copy the current wParam value */
 						wParamState = wParam;
 						
 						/* Create process thread */
-						if (thread[2] == false) g_hThread[2] = CreateThread(NULL, 0, NANDNameProc, hWnd, 0, &g_dwThreadID[2]);
+						CallNameThread(hWnd);
 					}
 					break;
 				default:

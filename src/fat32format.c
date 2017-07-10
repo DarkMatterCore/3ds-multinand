@@ -242,6 +242,7 @@ int format_volume(HWND hWndParent, wchar_t vol, char *VolId)
 	FAT_BOOTSECTOR32 *pFAT32BootSect = NULL;
 	FAT_FSINFO *pFAT32FsInfo = NULL;
 	DWORD *pFirstSectOfFat = NULL;
+	uint8_t *pFATRootDir = NULL;
 	
 	int ret = 0;
 	VolumeId = get_volume_id();
@@ -322,6 +323,7 @@ int format_volume(HWND hWndParent, wchar_t vol, char *VolId)
 	pFAT32BootSect = (FAT_BOOTSECTOR32*)VirtualAlloc(NULL, BytesPerSect, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	pFAT32FsInfo = (FAT_FSINFO*)VirtualAlloc(NULL, BytesPerSect, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	pFirstSectOfFat = (DWORD*)VirtualAlloc(NULL, BytesPerSect, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	pFATRootDir = (uint8_t*)VirtualAlloc(NULL, BytesPerSect, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	
 	if (!pFAT32BootSect || !pFAT32FsInfo || !pFirstSectOfFat)
 	{
@@ -422,7 +424,7 @@ int format_volume(HWND hWndParent, wchar_t vol, char *VolId)
 #ifdef DEBUG_BUILD
 	// Now we're commited - print some info first
 	ULONGLONG ClusterCount = (UserAreaSize / SectorsPerCluster);
-	_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Size: %g GB (%u sectors).\n%u bytes per sector, cluster size: %u bytes.\nVolume ID: %x:%x.\n%u reserved sectors, %u sectors per FAT, %u FATs.\n%u total clusters, %u free clusters.", (double)(piDrive.PartitionLength.QuadPart / (1000 * 1000 * 1000)), TotalSectors, BytesPerSect, SectorsPerCluster * BytesPerSect, VolumeId >> 16, VolumeId & 0xffff, ReservedSectCount, FatSize, NumFATs, ClusterCount, pFAT32FsInfo->dFree_Count);
+	_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Size: %g GB (%u sectors).\n%u bytes per sector, cluster size: %u bytes.\nVolume ID: %04x:%04x.\n%u reserved sectors, %u sectors per FAT, %u FATs.\n%u total clusters, %u free clusters.\nVolume Label: %s.", (double)(piDrive.PartitionLength.QuadPart / (1000 * 1000 * 1000)), TotalSectors, BytesPerSect, SectorsPerCluster * BytesPerSect, VolumeId >> 16, VolumeId & 0xffff, ReservedSectCount, FatSize, NumFATs, ClusterCount, pFAT32FsInfo->dFree_Count, VolId);
 	MessageBox(hWndParent, msg_info, TEXT("Debug info"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 	
@@ -465,13 +467,18 @@ int format_volume(HWND hWndParent, wchar_t vol, char *VolId)
 	
 	if (res < 0) ret = -8;
 	
+	memcpy(pFATRootDir, VolId, 11);
+	pFATRootDir[11] = 0x08;
+	res = write_sect(hWndParent, hDevice, ReservedSectCount + (NumFATs * FatSize), BytesPerSect, pFATRootDir, 1);
+	if (res < 0) ret = -9;
+	
 out:
 	bRet = DeviceIoControl(hDevice, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, (PDWORD)&cbRet, NULL);
 	if (!bRet)
 	{
 		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"FAT32FORMAT: Failed to dismount logical drive \"%s\".", devname);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-		ret = -9;
+		ret = -10;
 	}
 	
 	bRet = DeviceIoControl(hDevice, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, (PDWORD)&cbRet, NULL);
@@ -479,15 +486,17 @@ out:
 	{
 		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"FAT32FORMAT: Failed to unlock logical drive \"%s\".", devname);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-		ret = -10;
+		ret = -11;
 	}
 	
 	// Close device
 	if (hDevice != INVALID_HANDLE_VALUE) CloseHandle(hDevice);
 	
+	// Free allocated memory
 	if (pFAT32BootSect) VirtualFree(pFAT32BootSect, 0, MEM_RELEASE);
 	if (pFAT32FsInfo) VirtualFree(pFAT32FsInfo, 0, MEM_RELEASE);
 	if (pFirstSectOfFat) VirtualFree(pFirstSectOfFat, 0, MEM_RELEASE);
+	if (pFATRootDir) VirtualFree(pFATRootDir, 0, MEM_RELEASE);
 	
 	return ret;
 }
