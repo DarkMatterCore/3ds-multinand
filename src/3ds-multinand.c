@@ -18,6 +18,8 @@ const uint8_t MAGIC_STR[MAX_TAG][TAG_LENGTH] =	{	{ 0x47, 0x41, 0x54, 0x45, 0x57,
 													{ 0x45, 0x4D, 0x55, 0x4E, 0x41, 0x4E, 0x44, 0x39, 0x53, 0x44, 0x20 }  // "EMUNAND9SD "
 												};
 
+const uint32_t emunand_sizes[5] = { O3DS_TOSHIBA_NAND, O3DS_SAMSUNG_NAND, N3DS_SAMSUNG_NAND_1, N3DS_SAMSUNG_NAND_2, N3DS_TOSHIBA_NAND };
+
 static wchar_t wc[512] = {0};
 static wchar_t msg_info[512] = {0};
 
@@ -43,7 +45,7 @@ int64_t set_file_pointer(HANDLE h, int64_t new_ptr, uint32_t method)
 	if (lo_ptr != -1 && hi_ptr != -1)
 	{
 /*#ifdef DEBUG_BUILD
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"cur_ptr: 0x%08x%08x.", hi_ptr, lo_ptr);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"cur_ptr: 0x%08x%08x.", hi_ptr, lo_ptr);
 		MessageBox(NULL, msg_info, TEXT("Debug info"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif*/
 		return PTR_FULL(hi_ptr, lo_ptr);
@@ -72,7 +74,7 @@ bool write_dummy_data(HANDLE SDcard, int64_t offset)
 		if (res && bytes == SECTOR_SIZE)
 		{
 /*#ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Wrote %d bytes long \"0x%04X\" dummy data at offset 0x%09llX.", SECTOR_SIZE, DUMMY_DATA, offset);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Wrote %d bytes long \"0x%04X\" dummy data at offset 0x%09llX.", SECTOR_SIZE, DUMMY_DATA, offset);
 			MessageBox(NULL, msg_info, TEXT("Debug info"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif*/
 			return true;
@@ -80,7 +82,7 @@ bool write_dummy_data(HANDLE SDcard, int64_t offset)
 			MessageBox(NULL, TEXT("Error writing dummy data."), TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		}
 	} else {
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't seek to offset 0x%09llX in physical drive.", offset);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't seek to offset 0x%09llX in physical drive.", offset);
 		MessageBox(NULL, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 	}
 	
@@ -96,7 +98,7 @@ int64_t CheckStorageCapacity(HWND hWndParent)
     if (!status)
 	{
 #ifdef DEBUG_BUILD
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't get the disk geometry (%d).", GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't get the disk geometry (%d).", GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 		return -1;
@@ -105,7 +107,7 @@ int64_t CheckStorageCapacity(HWND hWndParent)
 	if (DiskGeometry.DiskSize.QuadPart > 0)
 	{
 /*#ifdef DEBUG_BUILD
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Drive capacity: %I64d bytes.", DiskGeometry.DiskSize.QuadPart);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Drive capacity: %I64d bytes.", DiskGeometry.DiskSize.QuadPart);
 		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif*/
 		return DiskGeometry.DiskSize.QuadPart;
@@ -155,7 +157,7 @@ char *GetLogicalName(HWND hWndParent, DWORD DriveIndex, BOOL bKeepTrailingBacksl
 			if (hVolume == INVALID_HANDLE_VALUE)
 			{
 #ifdef DEBUG_BUILD
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't access the first GUID volume (%d).", GetLastError());
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't access the first GUID volume (%d).", GetLastError());
 				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 				goto out;
@@ -166,7 +168,7 @@ char *GetLogicalName(HWND hWndParent, DWORD DriveIndex, BOOL bKeepTrailingBacksl
 				if (GetLastError() != ERROR_NO_MORE_FILES)
 				{
 #ifdef DEBUG_BUILD
-					_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't access the next GUID volume (%d).", GetLastError());
+					_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't access the next GUID volume (%d).", GetLastError());
 					MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 				}
@@ -179,7 +181,7 @@ char *GetLogicalName(HWND hWndParent, DWORD DriveIndex, BOOL bKeepTrailingBacksl
 		if ((len <= 1) || (_strnicmp(volume_name, volume_start, 4) != 0) || (volume_name[len-1] != '\\'))
 		{
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"'%s' is not a valid GUID volume name.", volume_name);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"'%s' is not a valid GUID volume name.", volume_name);
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 			continue;
@@ -193,18 +195,18 @@ char *GetLogicalName(HWND hWndParent, DWORD DriveIndex, BOOL bKeepTrailingBacksl
 		if (QueryDosDeviceA(&volume_name[4], path, sizeof(path)) == 0)
 		{
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Failed to get device path for GUID volume '%s' (%d).", volume_name, GetLastError());
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Failed to get device path for GUID volume '%s' (%d).", volume_name, GetLastError());
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 			continue;
 		}
 		
-		for (j = 0; (j < ARRAYSIZE(ignore_device)) && (_strnicmp(path, ignore_device[j], strlen(ignore_device[j])) != 0); j++);
+		for (j = 0; (j < GET_ARRAYSIZE(ignore_device)) && (_strnicmp(path, ignore_device[j], strlen(ignore_device[j])) != 0); j++);
 		
-		if (j < ARRAYSIZE(ignore_device))
+		if (j < GET_ARRAYSIZE(ignore_device))
 		{
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Skipping GUID volume for '%s'.", volume_name);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Skipping GUID volume for '%s'.", volume_name);
 			MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 			continue;
@@ -215,7 +217,7 @@ char *GetLogicalName(HWND hWndParent, DWORD DriveIndex, BOOL bKeepTrailingBacksl
 		if (hDrive == INVALID_HANDLE_VALUE)
 		{
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't open GUID volume '%s' (%d).", volume_name, GetLastError());
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't open GUID volume '%s' (%d).", volume_name, GetLastError());
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 			continue;
@@ -224,7 +226,7 @@ char *GetLogicalName(HWND hWndParent, DWORD DriveIndex, BOOL bKeepTrailingBacksl
 		if ((!DeviceIoControl(hDrive, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, NULL, 0, &DiskExtents, sizeof(DiskExtents), &size, NULL)) || (size <= 0))
 		{
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't get disk extents for GUID volume '%s' (%d).", volume_name, GetLastError());
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't get disk extents for GUID volume '%s' (%d).", volume_name, GetLastError());
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 			CloseHandle(hDrive);
@@ -284,7 +286,7 @@ BOOL InitializeDisk(HWND hWndParent)
 	dev_res = DeviceIoControl(drive, IOCTL_DISK_CREATE_DISK, &dsk, sizeof(dsk), NULL, 0, (PDWORD)&res, NULL);
 	if (!dev_res)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't delete the drive layout! (%d).", dev_res);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't delete the drive layout! (%d).", dev_res);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		return FALSE;
 	}
@@ -292,7 +294,7 @@ BOOL InitializeDisk(HWND hWndParent)
 	dev_res = DeviceIoControl(drive, IOCTL_DISK_UPDATE_PROPERTIES, NULL, 0, NULL, 0, (PDWORD)&res, NULL);
 	if (!dev_res)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't refresh the drive layout! (%d).", dev_res);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't refresh the drive layout! (%d).", dev_res);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		return FALSE;
 	}
@@ -313,7 +315,7 @@ BOOL ClearMBR(HWND hWndParent)
 	cur_ptr = set_file_pointer(drive, 0, FILE_BEGIN);
 	if (cur_ptr == -1)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #0! (%d)", GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #0! (%d)", GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		return FALSE;
 	}
@@ -321,7 +323,7 @@ BOOL ClearMBR(HWND hWndParent)
 	dev_res = WriteFile(drive, pBuf, SECTOR_SIZE, (PDWORD)&res, NULL);
 	if (!dev_res || res != SECTOR_SIZE)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't write %u bytes block to sector #0! (%d)\nWrote %u bytes.", SECTOR_SIZE, GetLastError(), res);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't write %u bytes block to sector #0! (%d)\nWrote %u bytes.", SECTOR_SIZE, GetLastError(), res);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		return FALSE;
 	}
@@ -337,26 +339,18 @@ void RemoveNAND(HWND hWndParent)
 	uint8_t buf[SECTOR_SIZE] = {0};
 	
 	char VolLab[12] = {0};
-	snprintf(VolLab, ARRAYSIZE(VolLab), "%.11s", (char*)(&(MAGIC_STR[0][0]))); // Always use the GATEWAYNAND tag
+	snprintf(VolLab, GET_ARRAYSIZE(VolLab), "%.11s", (char*)(&(MAGIC_STR[0][0]))); // Always use the GATEWAYNAND tag
 	
 	uint32_t DriveLayoutLen = sizeof(DRIVE_LAYOUT_INFORMATION_EX) + (3 * sizeof(PARTITION_INFORMATION_EX));
 	DRIVE_LAYOUT_INFORMATION_EX *DriveLayout = malloc(DriveLayoutLen);
 	
 	if (nandnum > 1)
 	{
-		/* Check if the current FAT layout is valid */
-		if (MultiNANDDrives[index].fat_layout == 0)
-		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"The FAT partition starting offset (0x%09llX) is not valid, even though it seems an EmuNAND was previously created in the selected SD card.\nBecause of this, it isn't possible to accurately calculate the offset where the EmuNAND is stored.\nThis is a very weird error. Remove the *first* EmuNAND from your SD card and create it from scratch.", MultiNANDDrives[index].fat_offset);
-			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-			goto out;
-		}
-		
 		/* Check if we're working with an EmuNAND that doesn't exist */
 		if (nandnum > MultiNANDDrives[index].emunand_cnt)
 		{
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Drive %c: doesn't contain a %d%s EmuNAND!", MultiNANDDrives[index].drive_letter[0], nandnum, NAND_NUM_STR(nandnum));
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Drive %c: doesn't contain a %d%s EmuNAND!", MultiNANDDrives[index].drive_letter[0], nandnum, NAND_NUM_STR(nandnum));
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 			goto out;
@@ -364,19 +358,19 @@ void RemoveNAND(HWND hWndParent)
 	}
 	
 	/* Generate the required offset */
-	int64_t fatsector = (nandnum == 1 ? round4MB(SECTOR_SIZE) : (MultiNANDDrives[index].fat_layout * (nandnum - 1)));
+	int64_t fatsector = (nandnum == 1 ? round4MB(SECTOR_SIZE) : MultiNANDDrives[index].emunand_offsets[nandnum - 1]);
 	
 	/* Open physical drive */
-	_snwprintf(devname, ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", MultiNANDDrives[index].drive_num);
+	_snwprintf(devname, GET_ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", MultiNANDDrives[index].drive_num);
 	drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (drive == INVALID_HANDLE_VALUE)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		goto out;
 	}
 	
-	_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Do you want to remove EmuNAND #%d and begin the format procedure?\n\nPlease, bear in mind that doing so will wipe the data on your current partition.\nIf you select \"No\", the process will be canceled.", nandnum);
+	_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Do you want to remove EmuNAND #%d and begin the format procedure?\n\nPlease, bear in mind that doing so will wipe the data on your current partition.\nIf you select \"No\", the process will be canceled.", nandnum);
 	dev_res = MessageBox(hWndParent, msg_info, TEXT("Warning"), MB_ICONWARNING | MB_YESNO | MB_SETFOREGROUND);
 	if (dev_res == IDYES)
 	{
@@ -409,14 +403,14 @@ void RemoveNAND(HWND hWndParent)
 		if (dev_res)
 		{
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Partition successfully moved to offset 0x%09llX!", fatsector);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Partition successfully moved to offset 0x%09llX!", fatsector);
 			MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 			
 			dev_res = DeviceIoControl(drive, IOCTL_DISK_UPDATE_PROPERTIES, NULL, 0, NULL, 0, (PDWORD)&res, NULL);
 			if (!dev_res)
 			{
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't refresh the partition table! (%d).", dev_res);
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't refresh the partition table! (%d).", dev_res);
 				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 				goto out;
 			}
@@ -460,17 +454,17 @@ void RemoveNAND(HWND hWndParent)
 										goto out;
 									}
 								} else {
-									_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
+									_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
 									MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 									goto out;
 								}
 							} else {
-								_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from \"%s\" sector #0 (%d).", SECTOR_SIZE, devname, GetLastError());
+								_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from \"%s\" sector #0 (%d).", SECTOR_SIZE, devname, GetLastError());
 								MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 								goto out;
 							}
 						} else {
-							_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
+							_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
 							MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 							goto out;
 						}
@@ -481,7 +475,7 @@ void RemoveNAND(HWND hWndParent)
 					MessageBox(hWndParent, TEXT("Couldn't reopen the handle to the physical drive!"), TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 				}
 			} else {
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't format the new FAT partition! (%d).", dev_res);
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't format the new FAT partition! (%d).", dev_res);
 				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			}
 		} else {
@@ -505,25 +499,10 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 	uint32_t index = GetDriveListIndex(false);
 	bool is_open = (drive != INVALID_HANDLE_VALUE);
 	
-	/* Check if the current FAT layout is valid */
-	if (MultiNANDDrives[index].fat_layout == 0)
-	{
-		if (!read)
-		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"The FAT partition starting offset (0x%09llX) is not valid, even though it seems an EmuNAND was previously created in the selected SD card.\nBecause of this, it isn't possible to accurately calculate the offset where the EmuNAND is stored.\nThis is a very weird error. Remove the *first* EmuNAND from your SD card and create it from scratch.", MultiNANDDrives[index].fat_offset);
-			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-		}
-		
-		snprintf(nand_name, ARRAYSIZE(nand_name), "EmuNAND #%d not available", nandnum);
-		
-		//ret = -1;
-		goto out;
-	}
-	
 	/* Check if we're working with an EmuNAND that doesn't exist */
 	if (nandnum > MultiNANDDrives[index].emunand_cnt)
 	{
-		snprintf(nand_name, ARRAYSIZE(nand_name), "EmuNAND #%d not available", nandnum);
+		snprintf(nand_name, GET_ARRAYSIZE(nand_name), "EmuNAND #%d not available", nandnum);
 		//ret = -2;
 		goto out;
 	}
@@ -531,11 +510,11 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 	if (!is_open)
 	{
 		/* Open physical drive */
-		_snwprintf(devname, ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", MultiNANDDrives[index].drive_num);
+		_snwprintf(devname, GET_ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", MultiNANDDrives[index].drive_num);
 		drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (drive == INVALID_HANDLE_VALUE)
 		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			ret = -3;
 			goto out;
@@ -543,12 +522,12 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 	}
 	
 	/* Generate the required offset */
-	int64_t mbrsect = (MultiNANDDrives[index].fat_layout * (nandnum - 1));
+	int64_t mbrsect = MultiNANDDrives[index].emunand_offsets[nandnum - 1];
 	
 	int64_t ptr = set_file_pointer(drive, mbrsect, FILE_BEGIN);
 	if (ptr == -1)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #%d in drive %c:.", mbrsect / SECTOR_SIZE, MultiNANDDrives[index].drive_letter[0]);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #%d in drive %c:.", mbrsect / SECTOR_SIZE, MultiNANDDrives[index].drive_letter[0]);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		ret = -4;
 		goto out;
@@ -559,7 +538,7 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 	int dev_res = ReadFile(drive, buf, SECTOR_SIZE, (PDWORD)&res, NULL);
 	if (!dev_res || res != SECTOR_SIZE)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from sector #%d in drive %c: (%d).", SECTOR_SIZE, mbrsect / SECTOR_SIZE, MultiNANDDrives[index].drive_letter[0], GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from sector #%d in drive %c: (%d).", SECTOR_SIZE, mbrsect / SECTOR_SIZE, MultiNANDDrives[index].drive_letter[0], GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		ret = -5;
 		goto out;
@@ -568,7 +547,7 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 	if (memcmp(buf + 16, &(MAGIC_STR[3][0]), TAG_LENGTH) == 0) // "EMUNAND9SD "
 	{
 		/* Disable name reading/writing. EmuNAND9 isn't compatible with this feature and we may wipe the info it stores in the MBR if we proceed */
-		snprintf(nand_name, ARRAYSIZE(nand_name), "Not compatible with EmuNAND9");
+		snprintf(nand_name, GET_ARRAYSIZE(nand_name), "Not compatible with EmuNAND9");
 	} else {
 		if (read)
 		{
@@ -576,7 +555,7 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 			{
 				strncpy(nand_name, (char*)(buf + 15), NAME_LENGTH - 1);
 			} else {
-				snprintf(nand_name, ARRAYSIZE(nand_name), "[NO NAME]");
+				snprintf(nand_name, GET_ARRAYSIZE(nand_name), "[NO NAME]");
 			}
 		} else {
 			memcpy(buf + 11, "NAME", 4);
@@ -587,7 +566,7 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 			ptr = set_file_pointer(drive, mbrsect, FILE_BEGIN);
 			if (ptr == -1)
 			{
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #%u in \"%s\".", mbrsect / SECTOR_SIZE, devname);
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #%u in \"%s\".", mbrsect / SECTOR_SIZE, devname);
 				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 				ret = -4;
 				goto out;
@@ -596,13 +575,13 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 			dev_res = WriteFile(drive, buf, SECTOR_SIZE, (PDWORD)&res, NULL);
 			if (!dev_res || res != SECTOR_SIZE)
 			{
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't write %d bytes chunk to \"%s\" sector #%u (%d).", SECTOR_SIZE, devname, mbrsect / SECTOR_SIZE, GetLastError());
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't write %d bytes chunk to \"%s\" sector #%u (%d).", SECTOR_SIZE, devname, mbrsect / SECTOR_SIZE, GetLastError());
 				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 				ret = -6;
 			} else {
 				if (!is_open)
 				{
-					_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Successfully wrote the %d%s EmuNAND name!", nandnum, NAND_NUM_STR(nandnum));
+					_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Successfully wrote the %d%s EmuNAND name!", nandnum, NAND_NUM_STR(nandnum));
 					MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 				}
 			}
@@ -693,188 +672,284 @@ uint32_t GetNANDPartitionsSize(uint8_t *buf)
 	return part_size;
 }
 
+int GetEmuNANDInfo(HWND hWndParent, uint32_t index, int64_t base_offset, int8_t nand_idx, bool getConsole)
+{
+	int i, ret = 0;
+	int64_t offset;
+	uint32_t part_size;
+	uint8_t buf[SECTOR_SIZE] = {0};
+	bool found = false;
+	
+	int64_t footer_offset;
+	uint8_t dummy_buf[SECTOR_SIZE] = {0};
+	
+	/* First, check for the presence of an EmuNAND */
+	for (i = 0; i < 5; i++)
+	{
+		/* Skip Old 3DS NAND sizes if we're looking for a New 3DS EmuNAND */
+		if (!getConsole && MultiNANDDrives[index].n3ds && i < 2) continue;
+		
+		/* Only check for an Old 3DS EmuNAND if we're not looking for New 3DS NAND dumps */
+		if (!getConsole && !MultiNANDDrives[index].n3ds && i > 1) break;
+		
+		offset = (base_offset + emunand_sizes[i]);
+		if (offset < MultiNANDDrives[index].fat_offset)
+		{
+			ret = CheckHeader(index, offset, buf, false);
+			if (ret == 0)
+			{
+				found = true;
+			} else
+			if (ret == -1)
+			{
+#ifdef DEBUG_BUILD
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%d%ls EmuNAND check: unable to locate the NCSD header at offset 0x%09llX.", nand_idx, NAND_NUM_STR(nand_idx), offset);
+				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+#endif
+			} else {
+				if (ret == -2)
+				{
+					_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%d%ls EmuNAND check: couldn't seek to offset 0x%09llX in physical drive.", nand_idx, NAND_NUM_STR(nand_idx), offset);
+					MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+				}
+				
+				if (ret == -3)
+				{
+					_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%d%ls EmuNAND check: couldn't read %d bytes block from offset 0x%09llX.", nand_idx, NAND_NUM_STR(nand_idx), SECTOR_SIZE, offset);
+					MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+				}
+			}
+		}
+		
+		if (found || ret < -1) break;
+	}
+	
+	/* Bail out if there are fatal errors */
+	if (ret < -1) return ret;
+	
+	if (found)
+	{
+		if (getConsole)
+		{
+			/* Calculate NAND dump size */
+			part_size = GetNANDPartitionsSize(buf);
+			
+			/* Check if this is a New 3DS NAND dump */
+			MultiNANDDrives[index].n3ds = (i > 1);
+			
+			/* Check if this is a 2DS NAND dump */
+			if (MultiNANDDrives[index].n3ds && part_size == O3DS_TOSHIBA_NAND) MultiNANDDrives[index].n2ds = true;
+		}
+		
+		/* Update the DRIVE_INFO struct */
+		MultiNANDDrives[index].emunand_cnt++;
+		MultiNANDDrives[index].emunand_sizes[nand_idx - 1] = emunand_sizes[i];
+		MultiNANDDrives[index].emunand_offsets[nand_idx - 1] = base_offset;
+		MultiNANDDrives[index].rednand[nand_idx - 1] = false;
+		
+#ifdef DEBUG_BUILD
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Valid NCSD header detected at offset 0x%09llX.\nConsole: %ls.\nNAND number: 1.\nNAND type: %ls.\nNAND size: %u bytes.", offset, (MultiNANDDrives[index].n3ds ? (MultiNANDDrives[index].n2ds ? L"2DS" : L"New 3DS") : L"Old 3DS"), (MultiNANDDrives[index].rednand[nand_idx - 1] ? L"RedNAND" : NAND_TYPE_STR(MultiNANDDrives[index].emunand_sizes[nand_idx - 1])), MultiNANDDrives[index].emunand_sizes[nand_idx - 1]);
+		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+#endif
+		
+		return 0;
+	}
+	
+	/* Check for the presence of a RedNAND */
+	offset = (base_offset + SECTOR_SIZE);
+	if (offset < MultiNANDDrives[index].fat_offset)
+	{
+		ret = CheckHeader(index, offset, buf, false);
+		if (ret == 0)
+		{
+			/* RedNAND size calculation procedure (based in the NCSD header info) */
+			/* May not match actual NAND flash capacity */
+			part_size = GetNANDPartitionsSize(buf);
+			
+			if (getConsole)
+			{
+				/* Check if this is a New 3DS NAND dump */
+				MultiNANDDrives[index].n3ds = (part_size >= N3DS_SAMSUNG_NAND_1);
+			}
+			
+			/* Calculate NAND dump size (based in the dummy footer position) */
+			for (i = 0; i < 5; i++)
+			{
+				/* Don't test Old 3DS NAND sizes if we have a New 3DS NCSD header */
+				if (MultiNANDDrives[index].n3ds && i < 2) continue;
+				
+				/* Test New 3DS NAND sizes even if we have an Old 3DS NCSD header */
+				/* We could be dealing with a 2DS NAND dump */
+				footer_offset = (offset + emunand_sizes[i]);
+				if (footer_offset < MultiNANDDrives[index].fat_offset)
+				{
+					ret = CheckHeader(index, footer_offset, dummy_buf, true);
+					if (ret == 0)
+					{
+						found = true;
+					} else
+					if (ret == -1)
+					{
+#ifdef DEBUG_BUILD
+						_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%d%ls RedNAND check: unable to locate the dummy footer at offset 0x%09llX.", nand_idx, NAND_NUM_STR(nand_idx), footer_offset);
+						MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+#endif
+					} else {
+						if (ret == -2)
+						{
+							_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%d%ls EmuNAND check: couldn't seek to offset 0x%09llX in physical drive.", nand_idx, NAND_NUM_STR(nand_idx), footer_offset);
+							MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+						}
+						
+						if (ret == -3)
+						{
+							_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%d%ls EmuNAND check: couldn't read %d bytes block from offset 0x%09llX.", nand_idx, NAND_NUM_STR(nand_idx), SECTOR_SIZE, footer_offset);
+							MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+						}
+					}
+				}
+				
+				if (found || ret < -1) break;
+			}
+			
+			/* Bail out if there are fatal errors */
+			if (ret < -1) return ret;
+			
+			if (found && getConsole)
+			{
+				/* Check if this is a 2DS NAND dump */
+				MultiNANDDrives[index].n2ds = (!MultiNANDDrives[index].n3ds && i > 1);
+				if (MultiNANDDrives[index].n2ds) MultiNANDDrives[index].n3ds = true;
+			}
+			
+#ifdef DEBUG_BUILD
+			if (!found) MessageBox(hWndParent, TEXT("Dummy footer not available in the SD card.\nRedNAND size will be calculated based in the NCSD header info.\nIt may not match your actual NAND flash capacity."), TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+#endif
+			
+			/* Update the DRIVE_INFO struct */
+			MultiNANDDrives[index].emunand_cnt++;
+			MultiNANDDrives[index].emunand_sizes[nand_idx - 1] = (found ? emunand_sizes[i] : part_size);
+			MultiNANDDrives[index].emunand_offsets[nand_idx - 1] = base_offset;
+			MultiNANDDrives[index].rednand[nand_idx - 1] = true;
+			
+#ifdef DEBUG_BUILD
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Valid NCSD header detected at offset 0x%09llX.\nConsole: %ls.\nNAND number: 1.\nNAND type: %ls.\nNAND size: %u bytes.", offset, (MultiNANDDrives[index].n3ds ? (MultiNANDDrives[index].n2ds ? L"2DS" : L"New 3DS") : L"Old 3DS"), (MultiNANDDrives[index].rednand[nand_idx - 1] ? L"RedNAND" : NAND_TYPE_STR(MultiNANDDrives[index].emunand_sizes[nand_idx - 1])), MultiNANDDrives[index].emunand_sizes[nand_idx - 1]);
+			MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+#endif
+			
+			return 0;
+		} else
+		if (ret == -1)
+		{
+#ifdef DEBUG_BUILD
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%d%ls RedNAND check: unable to locate the NCSD header at offset 0x%09llX.", nand_idx, NAND_NUM_STR(nand_idx), offset);
+			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+#endif
+		} else {
+			if (ret == -2)
+			{
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%ld%ls EmuNAND check: couldn't seek to offset 0x%09llX in physical drive.", nand_idx, NAND_NUM_STR(nand_idx), offset);
+				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+			}
+			
+			if (ret == -3)
+			{
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%ld%ls EmuNAND check: couldn't read %d bytes block from offset 0x%09llX.", nand_idx, NAND_NUM_STR(nand_idx), SECTOR_SIZE, offset);
+				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+			}
+			
+			return ret;
+		}
+	}
+	
+	/* No new EmuNAND or RedNAND found */
+	return -1;
+}
+
 int ParseEmuNANDs(HWND hWndParent, uint32_t index)
 {
 	/* No point in doing this if we haven't opened a drive */
 	if (drive == INVALID_HANDLE_VALUE) return -1;
 	
-	int i, j, ret = 0;
-	int64_t offset = 0;
-	bool is_n3ds, is_2ds = false, found = false;
-	uint8_t buf[SECTOR_SIZE] = {0};
-	uint32_t nandsize;
-	int8_t nand_cnt = 0;
+	int i, ret = 0;
+	int64_t offset = 0, accum_offset = 0;
 	
-	int64_t o3ds_nand_offsets[3] = { SECTOR_SIZE, O3DS_TOSHIBA_NAND, O3DS_SAMSUNG_NAND };
-	int64_t o3ds_fat_offsets[3] = { O3DS_LEGACY_FAT, O3DS_DEFAULT_FAT, O3DS_MINIMUM_FAT };
+	/* Try to determine the console type based on the first EmuNAND */
+	ret = GetEmuNANDInfo(hWndParent, index, offset, 1, true);
 	
-	int64_t n3ds_nand_offsets[4] = { SECTOR_SIZE, N3DS_SAMSUNG_NAND, N3DS_TOSHIBA_NAND, N3DS_UNKNOWN_NAND };
-	int64_t n3ds_fat_offsets[3] = { N3DS_LEGACY_FAT, N3DS_DEFAULT_FAT, N3DS_MINIMUM_FAT };
+	/* Bail out if there are fatal errors or if the first EmuNAND doesn't exist */
+	if (ret < 0) goto out;
 	
-	/* Check if the FAT partition offset is valid */
-	for (i = 0; i < 3; i++)
+	/* Skip searching for additional EmuNANDs if the FAT partition starting offset matches a 'Legacy' layout NAND size */
+	if (MultiNANDDrives[index].fat_offset == O3DS_LEGACY_FAT || MultiNANDDrives[index].fat_offset == N3DS_LEGACY_FAT)
 	{
-		for (j = 1; j <= MAX_NAND_NUM; j++)
+		goto out;
+	} else {
+		/* Check if the FAT partition starting offset matches a 4MB-rounded NAND size ('Default' and 'Minimum' layouts) */
+		bool found = false;
+		
+		for (i = 0; i < 5; i++)
 		{
-			if (MultiNANDDrives[index].fat_offset == (o3ds_fat_offsets[i] * j))
-			{
-				is_n3ds = false;
-				found = true;
-				break;
-			}
+			if (MultiNANDDrives[index].n3ds && i < 2) continue;
+			if (!MultiNANDDrives[index].n3ds && i > 1) break;
 			
-			if (MultiNANDDrives[index].fat_offset == (n3ds_fat_offsets[i] * j))
+			if (MultiNANDDrives[index].fat_offset == round4MB(SECTOR_SIZE + emunand_sizes[i]))
 			{
-				is_n3ds = true;
 				found = true;
 				break;
 			}
 		}
 		
-		if (found) break;
+		if (found) goto out;
 	}
 	
-	if (!found)
-	{
-		/* This is very weird. Nonetheless, we will use this value as a reference in InjectExtractNAND() */
-		MultiNANDDrives[index].fat_layout = 0;
-		return -1;
-	} else {
-		/* Update the FAT setup entry in the DRIVE_INFO struct. This will serve as a reference for the creation of additional EmuNANDs */
-		MultiNANDDrives[index].fat_layout = (is_n3ds ? n3ds_fat_offsets[i] : o3ds_fat_offsets[i]);
-	}
+	accum_offset = (SECTOR_SIZE + MultiNANDDrives[index].emunand_sizes[0]);
 	
-	for (i = 0; i < MAX_NAND_NUM; i++)
+	for (i = 1; i < MAX_NAND_NUM; i++)
 	{
-		/* Check if the first EmuNAND is an O3DS Toshiba EmuNAND, O3DS Samsung EmuNAND, N3DS Samsung EmuNAND, N3DS Toshiba EmuNAND, N3DS **Unknown** EmuNAND or a RedNAND (O3DS / N3DS) */
+		/* Check if the current EmuNAND is an O3DS Toshiba EmuNAND, O3DS Samsung EmuNAND, N3DS Samsung EmuNAND (type 1), N3DS Samsung EmuNAND (type 2), N3DS Toshiba EmuNAND */
+		/* or a RedNAND (O3DS / N3DS) */
 		/* Further iterations perform the same check for additional EmuNANDs, but will only be executed if the previous EmuNAND exists */
-		/* It should also be noted that the calculations for the additional EmuNAND offsets will be based on the partition style used by the first EmuNAND */
+		/* It should also be noted that the offsets for the additional EmuNANDs will be calculated based on the 3DS model from which the first EmuNAND was dumped */
 		
 		/* Depending on the type of the NAND stored in the SD card, the data has to be read in different ways */
 		/* This is because the order in which the data is written varies between each type of NAND */
 		
 		/* EmuNAND: the first 0x200 bytes (NCSD header) are stored **after** the NAND dump. The NAND dump starts to be written */
-		/*			from offset 0x200 to the SD card. Used by Gateway and modern CFWs, like rxTools, CakesFW and ReiNand */
+		/*			from offset 0x200 to the SD card. Used by Gateway and modern CFWs, like Luma3DS and CakesFW */
 		
 		/* RedNAND: first used by the Palantine CFW, now compatible with more CFWs. It is written to the SD card 'as is', beginning */
 		/*			with the NCSD header and following with the rest of the NAND data */
 		
-		/* Usually, a dummy footer follows afterwards. This applies for both types of NANDs, and serves to indicate the appropiate */
-		/* NAND flash capacity of the 3DS console */
+		/* Usually, a dummy footer follows afterwards. This applies for both types of NANDs, and serves to indicate the appropiate NAND flash capacity of the 3DS console */
 		
-		found = false;
+		/* Sanity check */
+		if (accum_offset >= MultiNANDDrives[index].fat_offset) break;
 		
-		for (j = 0; j < 4; j++)
+		/* In order to reduce the amount of checks, verify if the previous EmuNAND uses the 'Legacy' layout (rounded to 1GiB or 2GiB boundaries) */
+		offset = round_up(accum_offset, (!MultiNANDDrives[index].n3ds ? (int64_t)O3DS_LEGACY_FAT : ((MultiNANDDrives[index].n2ds && MultiNANDDrives[index].emunand_sizes[i - 1] < N3DS_SAMSUNG_NAND_1) ? (int64_t)O3DS_LEGACY_FAT : (int64_t)N3DS_LEGACY_FAT)));
+		ret = GetEmuNANDInfo(hWndParent, index, offset, i + 1, false);
+		if (ret < -1)
 		{
-			if (!is_n3ds && j == 3) break;
+			/* Bail out if there are fatal errors */
+			break;
+		} else
+		if (ret == -1)
+		{
+			/* Check if the previous EmuNAND uses either the 'Default' or 'Minimum' layout */
+			offset = round4MB(accum_offset);
+			ret = GetEmuNANDInfo(hWndParent, index, offset, i + 1, false);
 			
-			offset = (is_n3ds ? (n3ds_nand_offsets[j] + (MultiNANDDrives[index].fat_layout * i)) : (o3ds_nand_offsets[j] + (MultiNANDDrives[index].fat_layout * i)));
-			ret = CheckHeader(index, offset, buf, false);
-			if (ret == 0)
-			{
-				found = true;
-				nand_cnt++;
-				break;
-			} else
-			if (ret == -1)
-			{
-#ifdef DEBUG_BUILD
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Unable to locate the NCSD header at offset 0x%09llX.", offset);
-				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-#endif
-			} else {
-				break;
-			}
+			/* Bail out if there are fatal errors or if we didn't detect the current EmuNAND */
+			if (ret < 0) break;
 		}
 		
-		if (!found || ret < -1) break;
-		
-		if (found)
-		{
-			/* Check if we're dealing with a RedNAND */
-			if (j == 0)
-			{
-				/* Calculate NAND dump size (based in the dummy footer position) */
-				/* This steps will only be performed on a RedNAND */
-				int k;
-				int64_t footer_offset;
-				uint8_t dummy_buf[SECTOR_SIZE] = {0};
-				
-				for (k = 1; k < 4; k++)
-				{
-					/* Old 3DS: Check if this a Toshiba RedNAND (k == 1) or a Samsung RedNAND (k == 2), in that order */
-					/* New 3DS: Check if this a Samsung RedNAND (k == 1), a Toshiba RedNAND (k == 2) or an **Unknown** RedNAND (k == 3), in that order */
-					if (!is_n3ds && k == 3) break;
-					footer_offset = (is_n3ds ? (offset + n3ds_nand_offsets[k]) : (offset + o3ds_nand_offsets[k]));
-					ret = CheckHeader(index, footer_offset, dummy_buf, true);
-					if (ret == 0 || ret < -1) break;
-				}
-				
-				if (ret == 0)
-				{
-					/* We hit the sweet spot */
-					nandsize = (is_n3ds ? (uint32_t)n3ds_nand_offsets[k] : (uint32_t)o3ds_nand_offsets[k]);
-				} else
-				if (ret < -1)
-				{
-					break;
-				} else {
-#ifdef DEBUG_BUILD
-					MessageBox(hWndParent, TEXT("Dummy footer not available in the SD card.\nRedNAND size will be calculated based in the NCSD header info.\nIt may not match your actual NAND flash capacity."), TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
-#endif
-					
-					/* RedNAND size calculation procedure (based in the NCSD header info) */
-					/* May not match actual NAND flash capacity */
-					nandsize = 0;
-				}
-			} else {
-				/* No need to calculate what we already know */
-				nandsize = (is_n3ds ? (uint32_t)n3ds_nand_offsets[j] : (uint32_t)o3ds_nand_offsets[j]);
-			}
-			
-			if (i == 0 || nandsize == 0)
-			{
-				uint32_t part_size = GetNANDPartitionsSize(buf);
-				
-				/* Check if this is a 2DS NAND dump */
-				if (i == 0 && is_n3ds && part_size == O3DS_TOSHIBA_NAND) is_2ds = true;
-				
-				/* Save the calculated size if this is a RedNAND */
-				if (nandsize == 0) nandsize = part_size;
-			}
-			
-			/* Update the DRIVE_INFO struct */
-			MultiNANDDrives[index].emunand_sizes[i] = nandsize;
-			MultiNANDDrives[index].rednand[i] = (j == 0);
-			
-#ifdef DEBUG_BUILD
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Valid NCSD header detected at offset 0x%09llX.\nConsole: %ls.\nNAND number: %d.\nNAND type: %ls.\nNAND size: %u bytes.\nFAT layout: %ls.", offset, is_n3ds ? (is_2ds ? L"2DS" : L"New 3DS") : L"Old 3DS", i + 1, (j == 0 ? L"RedNAND" : (j == 1 ? (is_n3ds ? L"Samsung" : L"Toshiba") : (j == 2 ? (is_n3ds ? L"Toshiba" : L"Samsung") : L"**Unknown**"))), nandsize, FAT_LAYOUT_STR(MultiNANDDrives[index].fat_layout));
-			MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
-#endif
-		}
+		/* Update the offset and look for the next EmuNAND if we found one */
+		accum_offset = (offset + SECTOR_SIZE + MultiNANDDrives[index].emunand_sizes[i]);
 	}
 	
-	if (ret == -2)
-	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't seek to offset 0x%09llX in physical drive.", offset);
-		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-		return -1;
-	}
-	
-	if (ret == -3)
-	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't read %d bytes block from offset 0x%09llX.", SECTOR_SIZE, offset);
-		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-		return -1;
-	}
-	
-	/* Update the N3DS status and the EmuNAND count in the DRIVE_INFO struct */
-	if (nand_cnt > 0)
-	{
-		MultiNANDDrives[index].n3ds = is_n3ds;
-		MultiNANDDrives[index].n2ds = is_2ds;
-		MultiNANDDrives[index].emunand_cnt = nand_cnt;
-	}
+out:
+	if (ret < -1) return -1;
 	
 	return 0;
 }
@@ -921,7 +996,7 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 					if ((check_fixed && (res == DRIVE_REMOVABLE || res == DRIVE_FIXED)) || (!check_fixed && res == DRIVE_REMOVABLE))
 					{
 						/* Open logical drive */
-						_snwprintf(devname, ARRAYSIZE(devname), L"\\\\.\\%c:", SingleDrive[0]);
+						_snwprintf(devname, GET_ARRAYSIZE(devname), L"\\\\.\\%c:", SingleDrive[0]);
 						drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 						if (drive != INVALID_HANDLE_VALUE)
 						{
@@ -952,7 +1027,7 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 											drive = INVALID_HANDLE_VALUE;
 											
 											/* Open physical drive */
-											_snwprintf(devname, ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", (unsigned int)diskExtents.Extents[0].DiskNumber);
+											_snwprintf(devname, GET_ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", (unsigned int)diskExtents.Extents[0].DiskNumber);
 											drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 											if (drive != INVALID_HANDLE_VALUE)
 											{
@@ -982,7 +1057,7 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 #ifdef DEBUG_BUILD
 															if (!contains_tag && p_offset > 0)
 															{
-																_snwprintf(msg_info, ARRAYSIZE(msg_info), L"MBR signature (logical drive \"%c:\"):\n", SingleDrive[0]);
+																_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"MBR signature (logical drive \"%c:\"):\n", SingleDrive[0]);
 																for (i = 0; i < TAG_LENGTH; i++)
 																{
 																	wchar_t byte[4] = {0};
@@ -1014,7 +1089,7 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 																SendMessage(contains_tag ? EmuNANDDriveList : FormatDriveList, CB_ADDSTRING, 0, (LPARAM)MultiNANDDrives[j].drive_str);
 																
 																/* Fill the rest of the info */
-																_snwprintf(MultiNANDDrives[j].drive_letter, ARRAYSIZE(MultiNANDDrives[j].drive_letter), L"%c:\\", SingleDrive[0]);
+																_snwprintf(MultiNANDDrives[j].drive_letter, GET_ARRAYSIZE(MultiNANDDrives[j].drive_letter), L"%c:\\", SingleDrive[0]);
 																MultiNANDDrives[j].drive_num = (unsigned int)diskExtents.Extents[0].DiskNumber;
 																MultiNANDDrives[j].drive_sz = drive_sz;
 																MultiNANDDrives[j].fat_offset = p_offset;
@@ -1047,13 +1122,13 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 															}
 														} else {
 #ifdef DEBUG_BUILD
-															_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from \"%s\" sector #0 (%d).", SECTOR_SIZE, devname, GetLastError());
+															_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from \"%s\" sector #0 (%d).", SECTOR_SIZE, devname, GetLastError());
 															MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 														}
 													} else {
 #ifdef DEBUG_BUILD
-														_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
+														_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
 														MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 													}
@@ -1061,39 +1136,39 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 #ifdef DEBUG_BUILD
 													if (drive_sz <= 0)
 													{
-														_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't get the drive capacity for \"%s\".", devname);
+														_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't get the drive capacity for \"%s\".", devname);
 														MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 													}
 #endif
 												}
 											} else {
 #ifdef DEBUG_BUILD
-												_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
+												_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
 												MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 											}
 										} else {
 #ifdef DEBUG_BUILD
-											_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't retrieve extended partition information for \"%s\" (%d).", devname, GetLastError());
+											_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't retrieve extended partition information for \"%s\" (%d).", devname, GetLastError());
 											MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 										}
 									}
 								} else {
 #ifdef DEBUG_BUILD
-									_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't retrieve disk volume information for \"%s\".\ndev_res: %d / res: %u.", devname, dev_res, res);
+									_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't retrieve disk volume information for \"%s\".\ndev_res: %d / res: %u.", devname, dev_res, res);
 									MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 								}
 							} else {
 #ifdef DEBUG_BUILD
-								_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Logical drive \"%c:\" not ready (empty drive?).", SingleDrive[0]);
+								_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Logical drive \"%c:\" not ready (empty drive?).", SingleDrive[0]);
 								MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 							}
 						} else {
 #ifdef DEBUG_BUILD
-							_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't open logical drive \"%s\" (%d).", devname, GetLastError());
+							_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't open logical drive \"%s\" (%d).", devname, GetLastError());
 							MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 #endif
 						}
@@ -1101,7 +1176,7 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 #ifdef DEBUG_BUILD
 						if (res == DRIVE_UNKNOWN)
 						{
-							_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Unknown drive type for \"%c:\".", SingleDrive[0]);
+							_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Unknown drive type for \"%c:\".", SingleDrive[0]);
 							MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 						}
 #endif
@@ -1139,7 +1214,7 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 #ifdef DEBUG_BUILD
 		for (i = 0; i < j; i++)
 		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Drive #%d info:\n\n- String: \"%ls\".\n- Letter: %ls.\n- Number: %u.\n- Capacity: %I64d bytes.\n- Partition offset: 0x%09llX.", i + 1, MultiNANDDrives[i].drive_str, MultiNANDDrives[i].drive_letter, MultiNANDDrives[i].drive_num, MultiNANDDrives[i].drive_sz, MultiNANDDrives[i].fat_offset);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Drive #%d info:\n\n- String: \"%ls\".\n- Letter: %ls.\n- Number: %u.\n- Capacity: %I64d bytes.\n- Partition offset: 0x%09llX.", i + 1, MultiNANDDrives[i].drive_str, MultiNANDDrives[i].drive_letter, MultiNANDDrives[i].drive_num, MultiNANDDrives[i].drive_sz, MultiNANDDrives[i].fat_offset);
 			MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 		}
 #endif
@@ -1162,39 +1237,39 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 	uint32_t DriveLayoutLen = sizeof(DRIVE_LAYOUT_INFORMATION_EX) + (3 * sizeof(PARTITION_INFORMATION_EX));
 	DRIVE_LAYOUT_INFORMATION_EX *DriveLayout = malloc(DriveLayoutLen);
 	
-	/* Check if the current FAT layout is valid */
-	if (!isFormat && MultiNANDDrives[index].fat_layout == 0)
-	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"The FAT partition starting offset (0x%09llX) is not valid, even though it seems an EmuNAND was previously created in the selected SD card.\nBecause of this, it isn't possible to accurately calculate the offset where the EmuNAND is stored.\nThis is a very weird error. Remove the EmuNAND from your SD card and create it from scratch.", MultiNANDDrives[index].fat_offset);
-		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-		goto out;
-	}
-	
 	/* Open 3DS NAND dump */
 	nandfile = _wfopen(fname, (is_input ? L"rb" : L"wb"));
 	if (!nandfile)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't open \"%s\" for %s.", fname, (is_input ? L"reading" : L"writing"));
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't open \"%s\" for %s.", fname, (is_input ? L"reading" : L"writing"));
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		goto out;
 	}
 	
 	if (is_input)
 	{
+		/* Check if we're trying to inject an EmuNAND to a slot after the right next one */
+		if (!isFormat && nandnum > (MultiNANDDrives[index].emunand_cnt + 1))
+		{
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Inject a %d%ls EmuNAND to drive %c: first!", MultiNANDDrives[index].emunand_cnt + 1, NAND_NUM_STR(MultiNANDDrives[index].emunand_cnt + 1), MultiNANDDrives[index].drive_letter[0]);
+			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+			goto out;
+		}
+		
 		/* Store NAND dump size */
 		fseek(nandfile, 0, SEEK_END);
 		nandsize = ftell(nandfile);
 		rewind(nandfile);
 		
-		n3ds = (nandsize == N3DS_SAMSUNG_NAND || nandsize == N3DS_UNKNOWN_NAND || nandsize == N3DS_TOSHIBA_NAND);
-		if ((nandsize != O3DS_TOSHIBA_NAND && nandsize != (O3DS_TOSHIBA_NAND + SECTOR_SIZE) && nandsize != O3DS_SAMSUNG_NAND && nandsize != (O3DS_SAMSUNG_NAND + SECTOR_SIZE) && nandsize != N3DS_SAMSUNG_NAND && nandsize != N3DS_UNKNOWN_NAND && nandsize != N3DS_TOSHIBA_NAND) || (!isFormat && !MultiNANDDrives[index].n2ds && n3ds != MultiNANDDrives[index].n3ds))
+		n3ds = (nandsize == N3DS_SAMSUNG_NAND_1 || nandsize == (N3DS_SAMSUNG_NAND_1 + SECTOR_SIZE) || nandsize == N3DS_SAMSUNG_NAND_2 || nandsize == (N3DS_SAMSUNG_NAND_2 + SECTOR_SIZE) || nandsize == N3DS_TOSHIBA_NAND || nandsize == (N3DS_TOSHIBA_NAND + SECTOR_SIZE));
+		if ((nandsize != O3DS_TOSHIBA_NAND && nandsize != (O3DS_TOSHIBA_NAND + SECTOR_SIZE) && nandsize != O3DS_SAMSUNG_NAND && nandsize != (O3DS_SAMSUNG_NAND + SECTOR_SIZE) && nandsize != N3DS_SAMSUNG_NAND_1 && nandsize != (N3DS_SAMSUNG_NAND_1 + SECTOR_SIZE) && nandsize != N3DS_SAMSUNG_NAND_2 && nandsize != (N3DS_SAMSUNG_NAND_2 + SECTOR_SIZE) && nandsize != N3DS_TOSHIBA_NAND && nandsize != (N3DS_TOSHIBA_NAND + SECTOR_SIZE)) || (!isFormat && !MultiNANDDrives[index].n2ds && n3ds != MultiNANDDrives[index].n3ds))
 		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Invalid 3DS NAND dump.\nFilesize (%u bytes) is invalid.", nandsize);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Invalid 3DS NAND dump.\nFilesize (%u bytes) is invalid.", nandsize);
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			goto out;
 		}
 		
-		bool is_rednand = (nandsize == (O3DS_TOSHIBA_NAND + SECTOR_SIZE) || nandsize == (O3DS_SAMSUNG_NAND + SECTOR_SIZE));
+		bool is_rednand = (nandsize == (O3DS_TOSHIBA_NAND + SECTOR_SIZE) || nandsize == (O3DS_SAMSUNG_NAND + SECTOR_SIZE) || nandsize == (N3DS_SAMSUNG_NAND_1 + SECTOR_SIZE) || nandsize == (N3DS_SAMSUNG_NAND_2 + SECTOR_SIZE) || nandsize == (N3DS_TOSHIBA_NAND + SECTOR_SIZE));
 		if (is_rednand && !cfw)
 		{
 			/* Warn the user about the use of an input RedNAND */
@@ -1223,18 +1298,18 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 		}
 		
 #ifdef DEBUG_BUILD
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"%s 3DS %s NAND dump detected!\nFilesize: %u bytes.\nValid NCSD header detected at offset 0x%08x.", (!n3ds ? L"Old" : L"New"), NAND_TYPE_STR(nandsize), nandsize, (is_rednand ? (SECTOR_SIZE + 0x100) : 0x100));
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%s 3DS %s NAND dump detected!\nFilesize: %u bytes.\nValid NCSD header detected at offset 0x%08x.", (!n3ds ? L"Old" : L"New"), NAND_TYPE_STR(nandsize), nandsize, (is_rednand ? (SECTOR_SIZE + 0x100) : 0x100));
 		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 		
-		if (isFormat)
+		/* Adjust NAND size to the minimum possible */
+		if (!n3ds && nandsize != O3DS_TOSHIBA_NAND)
 		{
-			/* Adjust NAND size for the format procedure */
-			if (!n3ds && nandsize != O3DS_TOSHIBA_NAND)
-			{
-				nandsize = O3DS_TOSHIBA_NAND;
-			} else
-			if (n3ds && nandsize != N3DS_SAMSUNG_NAND)
+			nandsize = O3DS_TOSHIBA_NAND;
+		} else
+		if (n3ds && nandsize != N3DS_SAMSUNG_NAND_1)
+		{
+			if (isFormat)
 			{
 				fread(buf, SECTOR_SIZE, 1, nandfile);
 				fseek(nandfile, (is_rednand ? SECTOR_SIZE : 0), SEEK_SET);
@@ -1242,19 +1317,27 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 				/* Determine the NAND CTR FAT size (2DS NAND dump check) */
 				uint32_t part_size = GetNANDPartitionsSize(buf);
 				n2ds = (part_size == O3DS_TOSHIBA_NAND);
-				nandsize = (n2ds ? O3DS_TOSHIBA_NAND : N3DS_SAMSUNG_NAND);
+			} else {
+				/* Adjust 2DS status */
+				n2ds = MultiNANDDrives[index].n2ds;
 			}
 			
-			/* Adjust RedNAND configuration */
-			cfw = true;
-		} else {
-			/* Adjust 2DS status */
-			n2ds = MultiNANDDrives[index].n2ds;
-			
-			/* Adjust NAND size to make it fit (in case it's a bigger NAND dump) */
-			if (nandsize > MultiNANDDrives[index].fat_layout) nandsize = ((!n3ds || n2ds) ? O3DS_TOSHIBA_NAND : N3DS_SAMSUNG_NAND);
+			nandsize = (n2ds ? O3DS_TOSHIBA_NAND : N3DS_SAMSUNG_NAND_1);
 		}
+		
+		/* Adjust RedNAND configuration */
+		if (isFormat) cfw = true;
 	} else {
+		/* Check if we're trying to extract an EmuNAND that doesn't exist */
+		if (nandnum > MultiNANDDrives[index].emunand_cnt)
+		{
+#ifdef DEBUG_BUILD
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Drive %c: doesn't contain a %d%s EmuNAND!", MultiNANDDrives[index].drive_letter[0], nandnum, NAND_NUM_STR(nandnum));
+			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+#endif
+			goto out;
+		}
+		
 		/* Adjust New 3DS status */
 		n3ds = MultiNANDDrives[index].n3ds;
 		
@@ -1268,57 +1351,42 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 		cfw = MultiNANDDrives[index].rednand[nandnum - 1];
 	}
 	
+	/* Generate required offsets */
+	/* Use the 'Default' / 'Minimum' layout */
 	if (!isFormat)
 	{
-		/* Generate required offsets */
-		fatsector = (MultiNANDDrives[index].fat_layout * nandnum);
-		nandsector = (SECTOR_SIZE + (MultiNANDDrives[index].fat_layout * (nandnum - 1)));
-		
-		/* Check if we're trying to extract an EmuNAND that doesn't exist */
 		if (nandnum > MultiNANDDrives[index].emunand_cnt)
 		{
-			if (!is_input)
-			{
-#ifdef DEBUG_BUILD
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Drive %c: doesn't contain a %d%s EmuNAND!", MultiNANDDrives[index].drive_letter[0], nandnum, NAND_NUM_STR(nandnum));
-				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-#endif
-				goto out;
-			}
-			
-			/* Check storage capacity */
-			if (MultiNANDDrives[index].drive_sz <= fatsector)
-			{
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Your SD card must have a capacity of at least %u GiB to store the %d%s EmuNAND.", CAPACITY(nandnum, n3ds), nandnum, NAND_NUM_STR(nandnum));
-				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-				goto out;
-			}
+			fatsector = round4MB(MultiNANDDrives[index].fat_offset + nandsize);
+			nandsector = (MultiNANDDrives[index].fat_offset + SECTOR_SIZE);
+		} else {
+			fatsector = MultiNANDDrives[index].fat_offset;
+			nandsector = (MultiNANDDrives[index].emunand_offsets[nandnum - 1] + SECTOR_SIZE);
 		}
 	} else {
-		/* Generate required offsets */
 		fatsector = ((!n3ds || n2ds) ? (int64_t)O3DS_MINIMUM_FAT : (int64_t)N3DS_MINIMUM_FAT);
 		nandsector = (int64_t)SECTOR_SIZE;
-		
-		/* Check storage capacity */
-		if (MultiNANDDrives[index].drive_sz <= fatsector)
-		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Your SD card must have a capacity of at least %u GiB to store the %d%s EmuNAND.", CAPACITY(nandnum, (!n3ds || n2ds) ? 0 : 1), nandnum, NAND_NUM_STR(nandnum));
-			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
-			goto out;
-		}
+	}
+	
+	/* Check storage capacity */
+	if (MultiNANDDrives[index].drive_sz <= fatsector)
+	{
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Your SD card must have a capacity of at least %u GiB to store the %d%s EmuNAND.", CAPACITY(nandnum, (n3ds && !n2ds)), nandnum, NAND_NUM_STR(nandnum));
+		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+		goto out;
 	}
 	
 #ifdef DEBUG_BUILD
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Expected FAT partition starting offset: 0x%09llX.\nExpected NAND starting offset: 0x%09llX.", fatsector, nandsector);
-		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+	_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Expected FAT partition starting offset: 0x%09llX.\nExpected NAND starting offset: 0x%09llX.", fatsector, nandsector);
+	MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 	
 	/* Open physical drive */
-	_snwprintf(devname, ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", MultiNANDDrives[index].drive_num);
+	_snwprintf(devname, GET_ARRAYSIZE(devname), L"\\\\.\\PhysicalDrive%u", MultiNANDDrives[index].drive_num);
 	drive = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (drive == INVALID_HANDLE_VALUE)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't open physical drive \"%s\" (%d).", devname, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		goto out;
 	}
@@ -1333,7 +1401,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 	
 	if (!dev_res)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Failed to lock \"%s\".", devname);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Failed to lock \"%s\".", devname);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		goto out;
 	}*/
@@ -1343,7 +1411,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 #ifdef DEBUG_BUILD
 	if (!dev_res)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Failed to dismount \"%s\" (%d).", devname, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Failed to dismount \"%s\" (%d).", devname, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 	}
 #endif*/
@@ -1374,11 +1442,11 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 		if (DriveLayout->PartitionStyle == PARTITION_STYLE_MBR || (isFormat && DriveLayout->PartitionStyle != PARTITION_STYLE_MBR))
 		{
 			char VolLab[12] = {0};
-			snprintf(VolLab, ARRAYSIZE(VolLab), "%.11s", (char*)(&(MAGIC_STR[0][0]))); // Always use the GATEWAYNAND tag
+			snprintf(VolLab, GET_ARRAYSIZE(VolLab), "%.11s", (char*)(&(MAGIC_STR[0][0]))); // Always use the GATEWAYNAND tag
 			
 			if (!isFormat && DriveLayout->PartitionStyle == PARTITION_STYLE_MBR && DriveLayout->PartitionEntry[0].Mbr.PartitionType != PARTITION_FAT32 && DriveLayout->PartitionEntry[0].Mbr.PartitionType != PARTITION_FAT32_LBA && DriveLayout->PartitionEntry[0].Mbr.PartitionType != PARTITION_FAT_16 && DriveLayout->PartitionEntry[0].Mbr.PartitionType != PARTITION_FAT16B)
 			{
-				_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Detected partition type: 0x%02X.\nYour SD card isn't currently using a FAT partition.\nThis is weird, considering that the SD card already contains an EmuNAND.\nThis means it will *not* work properly with your 3DS console.\n\n", DriveLayout->PartitionEntry[0].Mbr.PartitionType);
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Detected partition type: 0x%02X.\nYour SD card isn't currently using a FAT partition.\nThis is weird, considering that the SD card already contains an EmuNAND.\nThis means it will *not* work properly with your 3DS console.\n\n", DriveLayout->PartitionEntry[0].Mbr.PartitionType);
 				
 				if (is_input)
 				{
@@ -1406,7 +1474,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 								{
 									MessageBox(hWndParent, TEXT("Successfully formatted the new FAT partition!"), TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 								} else {
-									_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't get the drive layout (%d).", GetLastError());
+									_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't get the drive layout (%d).", GetLastError());
 									MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 									goto out;
 								}
@@ -1433,9 +1501,9 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 						if (DriveLayout->PartitionEntry[0].StartingOffset.QuadPart < fatsector)
 						{
 							/* Move filesystem to the right */
-							_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Partition detected below the required offset (at 0x%09llX).\nDo you want to begin the drive layout modification procedure?\n\nPlease, bear in mind that doing so will wipe the data on your current partition.\nIf you select \"No\", the process will be canceled.", DriveLayout->PartitionEntry[0].StartingOffset.QuadPart);
+							_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Partition detected below the required offset (at 0x%09llX).\nDo you want to begin the drive layout modification procedure?\n\nPlease, bear in mind that doing so will wipe the data on your current partition.\nIf you select \"No\", the process will be canceled.", DriveLayout->PartitionEntry[0].StartingOffset.QuadPart);
 						} else {
-							_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Do you want to begin the format procedure?\n\nPlease, bear in mind that doing so will wipe the data on your current partition.\nIf you select \"No\", the process will be canceled.");
+							_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Do you want to begin the format procedure?\n\nPlease, bear in mind that doing so will wipe the data on your current partition.\nIf you select \"No\", the process will be canceled.");
 						}
 						
 						dev_res = MessageBox(hWndParent, msg_info, TEXT("Warning"), MB_ICONWARNING | MB_YESNO | MB_SETFOREGROUND);
@@ -1472,14 +1540,14 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 							if (dev_res)
 							{
 #ifdef DEBUG_BUILD
-								_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Partition successfully moved to offset 0x%09llX!", fatsector);
+								_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Partition successfully moved to offset 0x%09llX!", fatsector);
 								MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 								
 								dev_res = DeviceIoControl(drive, IOCTL_DISK_UPDATE_PROPERTIES, NULL, 0, NULL, 0, (PDWORD)&res, NULL);
 								if (!dev_res)
 								{
-									_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't refresh the partition table! (%d).", dev_res);
+									_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't refresh the partition table! (%d).", dev_res);
 									MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 									goto out;
 								}
@@ -1524,17 +1592,17 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 															goto out;
 														}
 													} else {
-														_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
+														_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
 														MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 														goto out;
 													}
 												} else {
-													_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from \"%s\" sector #0 (%d).", SECTOR_SIZE, devname, GetLastError());
+													_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't read %d bytes chunk from \"%s\" sector #0 (%d).", SECTOR_SIZE, devname, GetLastError());
 													MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 													goto out;
 												}
 											} else {
-												_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
+												_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to zero in \"%s\".", devname);
 												MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 												goto out;
 											}
@@ -1547,7 +1615,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 										goto out;
 									}
 								} else {
-									_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't format the new FAT partition! (%d).", dev_res);
+									_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't format the new FAT partition! (%d).", dev_res);
 									MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 									goto out;
 								}
@@ -1557,13 +1625,13 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 							}
 						}
 					} else {
-						_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Partition offset (0x%09llX) collides with the **%d%s** EmuNAND offset (0x%09llX)!", DriveLayout->PartitionEntry[0].StartingOffset.QuadPart, nandnum, NAND_NUM_STR(nandnum), nandsector);
+						_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Partition offset (0x%09llX) collides with the **%d%s** EmuNAND offset (0x%09llX)!", DriveLayout->PartitionEntry[0].StartingOffset.QuadPart, nandnum, NAND_NUM_STR(nandnum), nandsector);
 						MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 						goto out;
 					}
 				} else {
 #ifdef DEBUG_BUILD
-					_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Partition already positioned beyond offset 0x%09llX.", fatsector - 1);
+					_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Partition already positioned beyond offset 0x%09llX.", fatsector - 1);
 					if (is_input) wcscat(msg_info, L"\nSkipping drive layout modification procedure.");
 					MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
@@ -1571,23 +1639,23 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 			} else {
 				if (DriveLayout->PartitionEntry[0].StartingOffset.QuadPart < fatsector)
 				{
-					_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Partition offset (0x%09llX) collides with the **%d%s** EmuNAND offset (0x%09llX). This is probably some kind of corruption. Format the EmuNAND again to fix this.", DriveLayout->PartitionEntry[0].StartingOffset.QuadPart, nandnum, NAND_NUM_STR(nandnum), nandsector);
+					_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Partition offset (0x%09llX) collides with the **%d%s** EmuNAND offset (0x%09llX). This is probably some kind of corruption. Format the EmuNAND again to fix this.", DriveLayout->PartitionEntry[0].StartingOffset.QuadPart, nandnum, NAND_NUM_STR(nandnum), nandsector);
 					MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 					goto out;
 				} else {
 #ifdef DEBUG_BUILD
-					_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Partition already positioned beyond offset 0x%09llX.", fatsector - 1);
+					_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Partition already positioned beyond offset 0x%09llX.", fatsector - 1);
 					MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 				}
 			}
 		} else {
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"The partition style used by the SD card (GPT) isn't supported.\nPlease reformat the card using the MBR partition style.");
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"The partition style used by the SD card (GPT) isn't supported.\nPlease reformat the card using the MBR partition style.");
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			goto out;
 		}
 	} else {
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't get the drive layout (%d).", GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't get the drive layout (%d).", GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		goto out;
 	}
@@ -1599,7 +1667,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 	}
 	
 /*#ifdef DEBUG_BUILD
-	_snwprintf(msg_info, ARRAYSIZE(msg_info), L"%s %d%s %sNAND %s the SD card, please wait...", (is_input ? L"Writing" : L"Reading"), nandnum, NAND_NUM_STR(nandnum), (cfw ? L"Red" : L"Emu"), (is_input ? L"to" : L"from"));
+	_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%s %d%s %sNAND %s the SD card, please wait...", (is_input ? L"Writing" : L"Reading"), nandnum, NAND_NUM_STR(nandnum), (cfw ? L"Red" : L"Emu"), (is_input ? L"to" : L"from"));
 	MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif*/
 	
@@ -1647,6 +1715,19 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 			{
 				/* Write the dummy footer */
 				if (!write_dummy_data(drive, (cfw ? (offset + NAND_BUF_SIZE) : (offset + NAND_BUF_SIZE + SECTOR_SIZE)))) break;
+				
+				/* Wipe the NCSD header from the previous NAND if its size was greater than the size of the NAND we just injected */
+				if (nandnum <= MultiNANDDrives[index].emunand_cnt && nandsize < MultiNANDDrives[index].emunand_sizes[nandnum - 1] && !MultiNANDDrives[index].rednand[nandnum - 1])
+				{
+					uint8_t null_buf[SECTOR_SIZE] = {0};
+					
+					offset = (nandsector - SECTOR_SIZE + MultiNANDDrives[index].emunand_sizes[nandnum - 1]);
+					cur_ptr = set_file_pointer(drive, offset, FILE_BEGIN);
+					if (cur_ptr == -1) break;					
+					
+					dev_res = WriteFile(drive, null_buf, SECTOR_SIZE, (PDWORD)&res, NULL);
+					if (!dev_res || res != SECTOR_SIZE) break;
+				}
 			}
 		} else {
 			/* Fill buffer (SD) */
@@ -1679,12 +1760,12 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 	
 	if (cur_ptr == -1)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't seek to offset 0x%09llX in physical drive.", offset);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't seek to offset 0x%09llX in physical drive.", offset);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 	} else
 	if (!dev_res || (cnt == 0 && !cfw && res != (NAND_BUF_SIZE - SECTOR_SIZE)) || (cnt > 0 && res != NAND_BUF_SIZE))
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Couldn't %s block #%u %s offset 0x%09llX.", (is_input ? L"write" : L"read"), cnt / NAND_BUF_SIZE, (is_input ? L"to" : L"from"), offset);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't %s block #%u %s offset 0x%09llX.", (is_input ? L"write" : L"read"), cnt / NAND_BUF_SIZE, (is_input ? L"to" : L"from"), offset);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 	} else {
 		MessageBox(hWndParent, TEXT("Operation successfully completed!"), TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);

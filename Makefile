@@ -29,9 +29,9 @@ $(DBG_NAME): ${DBG_OBJS}
 	${CC} -o "$@" ${DBG_OBJS} ${LDFLAGS}
 
 clean:
-#	rm -f obj/*.o "$(EXE_NAME)" "$(DBG_NAME)"
-	FOR %%a IN (obj/*.o) DO DEL /F /S "%%a"
-	DEL /F "$(EXE_NAME)" "$(DBG_NAME)"
+	rm -f obj/*.o "$(EXE_NAME)" "$(DBG_NAME)"
+#	FOR %%a IN (obj/*.o) DO DEL /F /S "%%a"
+#	DEL /F "$(EXE_NAME)" "$(DBG_NAME)"
 
 obj/%.o: src/%.c ${HEADERS}
 	${CC} ${CFLAGS} ${INCLUDE_DIRS} -c $< -o $@

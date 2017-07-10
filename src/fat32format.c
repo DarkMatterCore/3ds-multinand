@@ -118,7 +118,7 @@ int write_sect(HWND hWndParent, HANDLE hDevice, DWORD Sector, DWORD BytesPerSect
 	int64_t ptr = set_file_pointer(hDevice, Sector * BytesPerSector, FILE_BEGIN);
 	if (ptr == -1)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't seek to offset 0x%09llX in logical drive.", Sector * BytesPerSector);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't seek to offset 0x%09llX in logical drive.", Sector * BytesPerSector);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		return -1;
 	}
@@ -127,7 +127,7 @@ int write_sect(HWND hWndParent, HANDLE hDevice, DWORD Sector, DWORD BytesPerSect
 	int ret = WriteFile(hDevice, Data, NumSects * BytesPerSector, &dwWritten, NULL);
 	if (!ret || dwWritten != (NumSects * BytesPerSector))
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't write %u bytes chunk to sector #%u (%d).", NumSects * BytesPerSector, Sector, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't write %u bytes chunk to sector #%u (%d).", NumSects * BytesPerSector, Sector, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		return -2;
 	}
@@ -154,7 +154,7 @@ int zero_sectors(HWND hWndParent, HANDLE hDevice, DWORD Sector, DWORD BytesPerSe
 	int64_t ptr = set_file_pointer(hDevice, Sector * BytesPerSect, FILE_BEGIN);
 	if (ptr == -1)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't seek to offset 0x%09llX in physical drive.", Sector * BytesPerSect);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't seek to offset 0x%09llX in physical drive.", Sector * BytesPerSect);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		ret = -2;
 		goto out;
@@ -173,7 +173,7 @@ int zero_sectors(HWND hWndParent, HANDLE hDevice, DWORD Sector, DWORD BytesPerSe
 		ret = WriteFile(hDevice, pZeroSect, WriteSize * BytesPerSect, &dwWritten, NULL);
 		if (!ret || dwWritten != (WriteSize * BytesPerSect))
 		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't write %u bytes chunk to sector #%u (%d).", WriteSize * BytesPerSect, Sector + NumSects - SectorsToWrite, GetLastError());
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't write %u bytes chunk to sector #%u (%d).", WriteSize * BytesPerSect, Sector + NumSects - SectorsToWrite, GetLastError());
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			ret = -3;
 			break;
@@ -253,18 +253,18 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 	char *LogicalPath = GetLogicalName(hWndParent, drive_num, FALSE);
 	if (LogicalPath == NULL)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"No logical drive found for physical drive #%u!", drive_num);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"No logical drive found for physical drive #%u!", drive_num);
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		ret = -1;
 		goto out;
 	}
 	
 	wchar_t devname[128] = {0};
-	_snwprintf(devname, ARRAYSIZE(devname), L"%S", LogicalPath);
+	_snwprintf(devname, GET_ARRAYSIZE(devname), L"%S", LogicalPath);
 	free(LogicalPath);
 	
 #ifdef DEBUG_BUILD
-	_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Logical path (physical drive #%u):\n%s", drive_num, devname);
+	_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Logical path (physical drive #%u):\n%s", drive_num, devname);
 	MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 	
@@ -273,7 +273,7 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 	hDevice = CreateFile(devname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hDevice == INVALID_HANDLE_VALUE)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't open logical drive \"%s\" (%d).", devname, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Couldn't open logical drive \"%s\" (%d).", devname, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		ret = -2;
 		goto out;
@@ -284,7 +284,7 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 #ifdef DEBUG_BUILD
 	if (!bRet)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to disable I/O boundary checks on logical drive \"%s\" (%d).\nNot a critical error, though.", devname, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to disable I/O boundary checks on logical drive \"%s\" (%d).\nNot a critical error, though.", devname, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 	}
 #endif
@@ -299,7 +299,7 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 	
 	if (!bRet)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to lock logical drive \"%s\" (%d).", devname, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to lock logical drive \"%s\" (%d).", devname, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 		ret = -3;
 		goto out;
@@ -310,7 +310,7 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 #ifdef DEBUG_BUILD
 	if (!bRet)
 	{
-		_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to dismount logical drive \"%s\" (%d).", devname, GetLastError());
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to dismount logical drive \"%s\" (%d).", devname, GetLastError());
 		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 	}
 #endif
@@ -322,7 +322,7 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 		bRet = DeviceIoControl(hDevice, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0, xdgDrive, sizeof(geometry_ex), (PDWORD)&cbRet, NULL);
 		if (!bRet)
 		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to get the device geometry for \"%s\".", devname);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to get the device geometry for \"%s\".", devname);
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			ret = -4;
 			goto out;
@@ -339,7 +339,7 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 		bRet = DeviceIoControl(hDevice, IOCTL_DISK_GET_PARTITION_INFO_EX, NULL, 0, &xpiDrive, sizeof(xpiDrive), (PDWORD)&cbRet, NULL);
 		if (!bRet)
 		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to get the partition info for \"%s\" (both regular and extended).", devname);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to get the partition info for \"%s\" (both regular and extended).", devname);
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			ret = -5;
 			goto out;
@@ -469,7 +469,7 @@ int format_volume(HWND hWndParent, uint32_t drive_num, char *VolLab)
 #ifdef DEBUG_BUILD
 	// Now we're commited - print some info first
 	DWORD ClusterCount = (UserAreaSize / SectorsPerCluster);
-	_snwprintf(msg_info, ARRAYSIZE(msg_info), L"Size: %g GB (%u sectors).\n%u bytes per sector, cluster size: %u bytes.\nVolume ID: %04x:%04x.\n%u reserved sectors, %u sectors per FAT, %u FATs.\n%u total clusters, %u free clusters.\nVolume Label: %.11S.", (double)(piDrive.PartitionLength.QuadPart / (1000 * 1000 * 1000)), TotalSectors, BytesPerSect, SectorsPerCluster * BytesPerSect, VolumeId >> 16, VolumeId & 0xffff, ReservedSectCount, FatSize, NumFATs, ClusterCount, pFAT32FsInfo->dFree_Count, VolLab);
+	_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Size: %g GB (%u sectors).\n%u bytes per sector, cluster size: %u bytes.\nVolume ID: %04x:%04x.\n%u reserved sectors, %u sectors per FAT, %u FATs.\n%u total clusters, %u free clusters.\nVolume Label: %.11S.", (double)(piDrive.PartitionLength.QuadPart / (1000 * 1000 * 1000)), TotalSectors, BytesPerSect, SectorsPerCluster * BytesPerSect, VolumeId >> 16, VolumeId & 0xffff, ReservedSectCount, FatSize, NumFATs, ClusterCount, pFAT32FsInfo->dFree_Count, VolLab);
 	MessageBox(hWndParent, msg_info, TEXT("Debug info"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 	
@@ -535,7 +535,7 @@ out:
 		
 		if (!bRet)
 		{
-			_snwprintf(msg_info, ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to unlock logical drive \"%s\".", devname);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"FAT32FORMAT: Failed to unlock logical drive \"%s\".", devname);
 			MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 			//ret = -12;
 		}
