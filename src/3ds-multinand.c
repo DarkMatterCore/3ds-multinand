@@ -94,7 +94,7 @@ bool write_dummy_data(HANDLE SDcard, int64_t offset)
 	return false;
 }
 
-void MultiNandProc(wchar_t *fname, HWND hWndParent, HWND hWndProgress)
+void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress)
 {
 #ifdef DEBUG_BUILD
 	uint32_t drivenum;
@@ -127,7 +127,7 @@ void MultiNandProc(wchar_t *fname, HWND hWndParent, HWND hWndProgress)
 		while (*SingleDrive)
 		{
 			/* Skip drives A:, B: and C: to avoid problems */
-			if (SingleDrive[0] != 'A' && SingleDrive[0] != 'B' && SingleDrive[0] != 'C')
+			if (SingleDrive[0] != L'A' && SingleDrive[0] != L'B' && SingleDrive[0] != L'C')
 			{
 				/* Get the drive type */
 				res = GetDriveType(SingleDrive);
@@ -474,7 +474,16 @@ void MultiNandProc(wchar_t *fname, HWND hWndParent, HWND hWndProgress)
 		}
 
 		bool is_rednand = (nandsize == TOSHIBA_REDNAND || nandsize == SAMSUNG_REDNAND);
-		if (is_rednand && !cfw) cfw = true; // Override configuration
+		if (is_rednand && !cfw)
+		{
+			/* Warn the user about the use of an input RedNAND */
+			dev_res = MessageBox(hWndParent, TEXT("The selected input NAND dump was previously patched with the \"drag_emunand_here\" batch file, and therefore, is a RedNAND.\n\nDo you want to inject this file as a RedNAND?\nIf you select \"No\", the NAND dump will be written as a common EmuNAND."), TEXT("Warning"), MB_ICONWARNING | MB_YESNO | MB_SETFOREGROUND);
+			if (dev_res == IDYES)
+			{
+				/*  Override configuration */
+				cfw = true;
+			}
+		}
 		
 #ifdef DEBUG_BUILD
 		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"%s 3DS %s NAND dump detected!\nFilesize: %u bytes.", (!n3ds ? L"Old" : L"New"), NAND_TYPE_STR(nandsize), nandsize);
@@ -771,4 +780,57 @@ out:
 	if (DriveLayout) free(DriveLayout);
 	if (nandfile) fclose(nandfile);
 	if (drive != INVALID_HANDLE_VALUE) CloseHandle(drive);
+}
+
+void ModifyBootBin(wchar_t *fname, HWND hWndParent)
+{
+	/* Modify the boot.bin file from the Palantine CFW. This is entirely optional */
+	FILE *boot_bin = _wfopen(fname, L"rb+");
+	if (!boot_bin)
+	{
+		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"Couldn't open \"%s\" for reading and writing.", fname);
+		MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
+	} else {
+		/* Store boot.bin size */
+		fseek(boot_bin, 0, SEEK_END);
+		uint32_t bootsize = ftell(boot_bin);
+		rewind(boot_bin);
+		
+		_snwprintf(msg_info, MAX_CHARACTERS(msg_info), L"boot.bin size: %u bytes ", bootsize);
+		
+		if (bootsize > 0 && bootsize == BOOT_BIN_SIZE)
+		{
+			/* The boot.bin file stores the SD card sector number from which the RedNAND will be booted at offset 0x14 */
+			/* Please note that it is a Little Endian value */
+			
+			/* Original value:	0x00000001 (sector #1) */
+			/* Second RedNAND:	0x00200001 (sector #2097153) */
+			/* Third RedNAND:	0x00400001 (sector #4194305) */
+			
+			fseek(boot_bin, BOOT_BIN_SECTOR, SEEK_SET);
+			
+			uint32_t bootsect;
+			fread(&bootsect, 4, 1, boot_bin);
+			fseek(boot_bin, -4, SEEK_CUR);
+			
+			/* newsect = (nandsect / SECTOR_SIZE) */
+			uint32_t newsect = ((SECTOR_SIZE + (O3DS_FS_BASE_SECTOR * (nandnum - 1))) / SECTOR_SIZE);
+			
+			_snwprintf(wc, MAX_CHARACTERS(wc), L"(good).\nboot.bin boot sector: %u (offset 0x%08X).\nNew boot sector: %u (offset 0x%08X).\n\n", bootsect, bootsect * SECTOR_SIZE, newsect, newsect * SECTOR_SIZE);
+			wcscat(msg_info, wc);
+			
+			if (bootsect == newsect)
+			{
+				wcscat(msg_info, TEXT("This boot.bin file was already modified."));
+			} else {
+				fwrite(&newsect, 1, 4, boot_bin);
+				wcscat(msg_info, TEXT("boot.bin file successfully modified!"));
+			}
+		} else {
+			wcscat(msg_info, TEXT("(bad).\n\nMake sure you're using the appropiate Palantine CFW files."));
+		}
+		
+		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
+		fclose(boot_bin);
+	}
 }

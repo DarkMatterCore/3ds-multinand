@@ -8,8 +8,8 @@
 #define MEDIA_UNIT_SIZE		SECTOR_SIZE
 #define NAND_BUF_SIZE		(SECTOR_SIZE * 128)					// 64 KiB
 
-//#define BOOT_BIN_SECTOR		0x14								// Contains the sector from which the RedNAND will be booted
-//#define BOOT_BIN_SIZE		0x1D8C								// 7564 bytes
+#define BOOT_BIN_SECTOR		0x14								// Contains the sector from which the RedNAND will be booted
+#define BOOT_BIN_SIZE		0x1D8C								// 7564 bytes
 
 #define O3DS_FS_BASE_SECTOR	0x40000000							// FILE_BEGIN + 1 GiB
 #define N3DS_FS_BASE_SECTOR	0x80000000							// FILE_BEGIN + 2 GiB
@@ -42,4 +42,5 @@ int8_t nandnum;
 bool n3ds, is_input, cfw;
 
 int GetTextSize(LPTSTR str);
-void MultiNandProc(wchar_t *fname, HWND hWndParent, HWND hWndProgress);
+void InjectExtractNAND(wchar_t *fname, HWND hWndParent, HWND hWndProgress);
+void ModifyBootBin(wchar_t *fname, HWND hWndParent);

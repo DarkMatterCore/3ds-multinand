@@ -6,7 +6,7 @@
 static HANDLE g_hThread;
 static DWORD g_dwThreadID;
 static BOOL dont_close = FALSE;
-static HWND GroupBox = NULL, O3DSRadio = NULL, N3DSRadio = NULL, NANDList = NULL, InjectEmuButton = NULL, InjectRedButton = NULL, ExtractButton = NULL, ProgressBar = NULL;
+static HWND GroupBox = NULL, O3DSRadio = NULL, N3DSRadio = NULL, NANDList = NULL, InjectEmuButton = NULL, InjectRedButton = NULL, ExtractButton = NULL, BootBinButton = NULL, ProgressBar = NULL;
 
 WPARAM wParamState = 0;
 
@@ -121,7 +121,7 @@ void CenterWindow(HWND hwnd)
 	SetWindowPos(hwnd, NULL, X, Y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
 }
 
-DWORD WINAPI ThreadProc(LPVOID lpParameter)
+DWORD WINAPI MultiNANDProc(LPVOID lpParameter)
 {
 	HWND hWndMain = (HWND)lpParameter;
 	
@@ -143,7 +143,7 @@ DWORD WINAPI ThreadProc(LPVOID lpParameter)
 	ofn.lpstrFileTitle = NULL;
 	ofn.nMaxFileTitle = 0;
 	ofn.lpstrInitialDir = NULL;
-	ofn.lpstrTitle = (LOWORD(wParamState) == IDB_EXTRACT_BUTTON ? TEXT("Select the output NAND dump:") : TEXT("Select an input NAND dump:"));
+	ofn.lpstrTitle = (LOWORD(wParamState) == IDB_EXTRACT_BUTTON ? TEXT("Select the output NAND dump") : TEXT("Select an input NAND dump"));
 	ofn.Flags = (LOWORD(wParamState) == IDB_EXTRACT_BUTTON ? (OFN_DONTADDTORECENT | OFN_NONETWORKBUTTON | OFN_CREATEPROMPT | OFN_OVERWRITEPROMPT) : (OFN_DONTADDTORECENT | OFN_NONETWORKBUTTON | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST));
 	ofn.nFileOffset = fpos;
 	ofn.nFileExtension = fext;
@@ -162,6 +162,7 @@ DWORD WINAPI ThreadProc(LPVOID lpParameter)
 		EnableWindow(InjectEmuButton, FALSE);
 		if (IsWindowEnabled(InjectRedButton)) EnableWindow(InjectRedButton, FALSE);
 		EnableWindow(ExtractButton, FALSE);
+		EnableWindow(BootBinButton, FALSE);
 		ToggleCloseButton(hWndMain, FALSE);
 		
 		/* Store input values for the operation */
@@ -174,7 +175,7 @@ DWORD WINAPI ThreadProc(LPVOID lpParameter)
 		SendMessage(ProgressBar, PBM_SETPOS, 0, 0);
 		
 		/* Do the magic */
-		MultiNandProc(ofn.lpstrFile, hWndMain, ProgressBar);
+		InjectExtractNAND(ofn.lpstrFile, hWndMain, ProgressBar);
 		
 		/* Enable window controls */
 		EnableWindow(O3DSRadio, TRUE);
@@ -183,6 +184,7 @@ DWORD WINAPI ThreadProc(LPVOID lpParameter)
 		EnableWindow(InjectEmuButton, TRUE);
 		if (SendMessage(O3DSRadio, BM_GETCHECK, 0, 0) == BST_CHECKED) EnableWindow(InjectRedButton, TRUE);
 		EnableWindow(ExtractButton, TRUE);
+		EnableWindow(BootBinButton, TRUE);
 		ToggleCloseButton(hWndMain, TRUE);
 	}
 	
@@ -208,18 +210,18 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			hFont = CreateFont(lf.lfHeight, lf.lfWidth, lf.lfEscapement, lf.lfOrientation, lf.lfWeight, lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut, lf.lfCharSet, lf.lfOutPrecision, lf.lfClipPrecision, lf.lfQuality, lf.lfPitchAndFamily, lf.lfFaceName);
 			
 			/* Create the "Nintendo 3DS Model" group box and the "Old 3DS" & "New 3DS" circle options */
-			GroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Nintendo 3DS Model"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 10, 160, 50, hWnd, NULL, hInstance, NULL);
+			GroupBox = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Nintendo 3DS Model"), WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 30, 160, 50, hWnd, NULL, hInstance, NULL);
 			SendMessage(GroupBox, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
-			O3DSRadio = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Old 3DS"), WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON, 20, 30, 70, 20, hWnd, (HMENU)IDB_O3DS_RADIO, hInstance, NULL);
+			O3DSRadio = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Old 3DS"), WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON, 20, 50, 70, 20, hWnd, (HMENU)IDB_O3DS_RADIO, hInstance, NULL);
 			SendMessage(O3DSRadio, WM_SETFONT, (WPARAM)hFont, TRUE);
 			SendMessage(O3DSRadio, BM_SETCHECK, (WPARAM)BST_CHECKED, 0); // Checks the "Old 3DS" option
 			
-			N3DSRadio = CreateWindowEx(0, TEXT("BUTTON"), TEXT("New 3DS"), WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON, 90, 30, 70, 20, hWnd, (HMENU)IDB_N3DS_RADIO, hInstance, NULL);
+			N3DSRadio = CreateWindowEx(0, TEXT("BUTTON"), TEXT("New 3DS"), WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON, 90, 50, 70, 20, hWnd, (HMENU)IDB_N3DS_RADIO, hInstance, NULL);
 			SendMessage(N3DSRadio, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
 			/* Create the "NAND Number" drop-down list */
-			NANDList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 190, 35, 100, 20, hWnd, NULL, hInstance, NULL);
+			NANDList = CreateWindowEx(0, TEXT("COMBOBOX"), NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | CBS_SORT, 190, 55, 100, 20, hWnd, NULL, hInstance, NULL);
 			SendMessage(NANDList, WM_SETFONT, (WPARAM)hFont, TRUE);
 			for (int i = 1; i <= MAX_NAND_NUM; i++)
 			{
@@ -229,18 +231,21 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 			SendMessage(NANDList, CB_SETCURSEL, 0, 0); // Sets the current selection to the first item
 			
-			/* Create the "Inject EmuNAND", "Inject RedNAND" and "Extract NAND" buttons */
-			InjectEmuButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject EmuNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 55, 70, 100, 20, hWnd, (HMENU)IDB_INJECTEMU_BUTTON, hInstance, NULL);
+			/* Create the "Inject EmuNAND", "Inject RedNAND", "Extract NAND" and "Modify boot.bin" buttons */
+			InjectEmuButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject EmuNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 55, 90, 100, 20, hWnd, (HMENU)IDB_INJECTEMU_BUTTON, hInstance, NULL);
 			SendMessage(InjectEmuButton, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
-			InjectRedButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject RedNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 165, 70, 100, 20, hWnd, (HMENU)IDB_INJECTRED_BUTTON, hInstance, NULL);
+			InjectRedButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Inject RedNAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 165, 90, 100, 20, hWnd, (HMENU)IDB_INJECTRED_BUTTON, hInstance, NULL);
 			SendMessage(InjectRedButton, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
-			ExtractButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Extract NAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 110, 100, 100, 20, hWnd, (HMENU)IDB_EXTRACT_BUTTON, hInstance, NULL);
+			ExtractButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Extract NAND"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 55, 120, 100, 20, hWnd, (HMENU)IDB_EXTRACT_BUTTON, hInstance, NULL);
 			SendMessage(ExtractButton, WM_SETFONT, (WPARAM)hFont, TRUE);
 			
+			BootBinButton = CreateWindowEx(0, TEXT("BUTTON"), TEXT("Modify boot.bin"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 165, 120, 100, 20, hWnd, (HMENU)IDB_BOOTBIN_BUTTON, hInstance, NULL);
+			SendMessage(BootBinButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+			
 			/* Create the progress bar */
-			ProgressBar = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_VISIBLE | WS_CHILD | PBS_SMOOTH, 10, 130, 295, 20, hWnd, NULL, hInstance, NULL);
+			ProgressBar = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_VISIBLE | WS_CHILD | PBS_SMOOTH, 10, 150, 295, 20, hWnd, NULL, hInstance, NULL);
 			SendMessage(ProgressBar, PBM_SETSTEP, 1, 0);
 			
 			/* Center the program window */
@@ -267,9 +272,9 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			SelectObject(hdc, GetStockObject(DEFAULT_GUI_FONT));
 			SetTextColor(hdc, 0);
 			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 190, 20, TEXT("NAND Number:"), 12);
-			TextOut(hdc, 0, 160, TEXT(COPYRIGHT), GetTextSize(TEXT(COPYRIGHT)));
-			TextOut(hdc, 290, 160, TEXT(VER_FILEVERSION_STR), GetTextSize(TEXT(VER_FILEVERSION_STR)));
+			TextOut(hdc, 190, 40, TEXT("NAND Number:"), 12);
+			TextOut(hdc, 0, 0, TEXT(COPYRIGHT), GetTextSize(TEXT(COPYRIGHT)));
+			TextOut(hdc, 290, 0, TEXT(VER_FILEVERSION_STR), GetTextSize(TEXT(VER_FILEVERSION_STR)));
 			EndPaint(hWnd, &ps);
 			break;
 		}
@@ -289,8 +294,46 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					wParamState = wParam;
 					
 					/* Create process thread */
-					g_hThread = CreateThread(NULL, 0, ThreadProc, hWnd, 0, &g_dwThreadID);
+					g_hThread = CreateThread(NULL, 0, MultiNANDProc, hWnd, 0, &g_dwThreadID);
 					break;
+				case IDB_BOOTBIN_BUTTON:
+				{
+					OPENFILENAME ofn;
+					wchar_t filename[512] = {0};
+					DWORD fpos = 0, fext = 0;
+					
+					ZeroMemory(&ofn, sizeof(ofn));
+					
+					ofn.lStructSize = sizeof(OPENFILENAME);
+					ofn.hwndOwner = hWnd;
+					ofn.hInstance = NULL;
+					ofn.lpstrFilter = TEXT("Palantine CFW boot.bin file (*.bin)\0*.bin\0\0");
+					ofn.lpstrCustomFilter = NULL;
+					ofn.nMaxCustFilter = 0;
+					ofn.nFilterIndex = 0;
+					ofn.lpstrFile = filename;
+					ofn.nMaxFile = 512;
+					ofn.lpstrFileTitle = NULL;
+					ofn.nMaxFileTitle = 0;
+					ofn.lpstrInitialDir = NULL;
+					ofn.lpstrTitle = TEXT("Select the CFW boot.bin file to modify");
+					ofn.Flags = (OFN_DONTADDTORECENT | OFN_NONETWORKBUTTON | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST);
+					ofn.nFileOffset = fpos;
+					ofn.nFileExtension = fext;
+					ofn.lpstrDefExt = TEXT("bin");
+					ofn.lCustData = 0;
+					ofn.lpfnHook = NULL;
+					ofn.lpTemplateName = NULL;
+					
+					BOOL fopened = GetOpenFileName(&ofn);
+					if (fopened)
+					{
+						nandnum = (SendMessage(NANDList, CB_GETCURSEL, 0, 0) + 1); // The index is zero-based
+						ModifyBootBin(ofn.lpstrFile, hWnd);
+					}
+					
+					break;
+				}
 				default:
 					break;
 			}
@@ -345,7 +388,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	
 	// Create instance of main window.
-	hWnd = CreateWindowEx(0, MainWndClass, MainWndClass, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 320, 200, NULL, NULL, hInstance, NULL);
+	hWnd = CreateWindowEx(0, MainWndClass, MainWndClass, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 320, 210, NULL, NULL, hInstance, NULL);
 	
 	// Error if window creation failed.
 	if (!hWnd)

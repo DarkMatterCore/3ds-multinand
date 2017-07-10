@@ -4,13 +4,14 @@
 #define IDB_INJECTEMU_BUTTON			104
 #define IDB_INJECTRED_BUTTON			105
 #define IDB_EXTRACT_BUTTON				106
+#define IDB_BOOTBIN_BUTTON				107
 
 #ifndef IDC_STATIC
 	#define IDC_STATIC					-1
 #endif
 
-#define VER_FILEVERSION					0,8,0,0
-#define VER_FILEVERSION_STR				"v0.8"
+#define VER_FILEVERSION					0,9,0,0
+#define VER_FILEVERSION_STR				"v0.9"
 #define INTERNAL_NAME					"3ds-multinand"
 #define ORIGINAL_FILENAME				"3ds-multinand.exe"
 #define PRODUCT_NAME					"3DS Multi EmuNAND Creator"
