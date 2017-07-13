@@ -20,92 +20,35 @@ void ToggleCloseButton(HWND hwnd, BOOL bState)
 	dont_close = (bState ^ 1);
 }
 
-/* From the "How To Determine Whether a Thread Is Running in User Context of Local Administrator Account" article */
-/* URL: https://support.microsoft.com/en-us/kb/118626 */
-bool IsUserAdmin(void)
+/* From the "Elevating during runtime" article, written by Michael Haephrati */
+/* URL: https://www.codeproject.com/Articles/320748/Haephrati-Elevating-during-runtime */
+BOOL IsAppRunningAsAdminMode()
 {
-	PACL pACL = NULL;
-	PRIVILEGE_SET ps;
-	PSID psidAdmin = NULL;
-	GENERIC_MAPPING GenericMapping;
-	PSECURITY_DESCRIPTOR psdAdmin = NULL;
-	HANDLE hAccessToken = NULL, hImpersonationToken = NULL;
-	SID_IDENTIFIER_AUTHORITY NtAuthority = {SECURITY_NT_AUTHORITY};
-	DWORD dwStatus, dwAccessMask, dwAccessDesired, dwACLSize, dwStructureSize = sizeof(PRIVILEGE_SET);
+	BOOL fIsRunAsAdmin = FALSE;
+	DWORD dwError = ERROR_SUCCESS;
+	PSID pAdministratorsGroup = NULL;
 	
-	const DWORD ACCESS_READ  = 1;
-	const DWORD ACCESS_WRITE = 2;
-	
-	BOOL success = OpenThreadToken(GetCurrentThread(), TOKEN_DUPLICATE|TOKEN_QUERY, TRUE, &hAccessToken);
-	if (!success)
+	// Allocate and initialize a SID of the administrators group.
+	SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+	if (!AllocateAndInitializeSid(&NtAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &pAdministratorsGroup))
 	{
-		if (GetLastError() == ERROR_NO_TOKEN) success = OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE|TOKEN_QUERY, &hAccessToken);
+		dwError = GetLastError();
+	} else {
+		// Determine whether the SID of administrators group is enabled in 
+		// the primary access token of the process.
+		if (!CheckTokenMembership(NULL, pAdministratorsGroup, &fIsRunAsAdmin)) dwError = GetLastError();
 	}
 	
-	if (success)
+	// Centralized cleanup for all allocated resources.
+	if (pAdministratorsGroup)
 	{
-		success = DuplicateToken(hAccessToken, SecurityImpersonation, &hImpersonationToken);
-		if (success)
-		{
-			success = AllocateAndInitializeSid(&NtAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &psidAdmin);
-			if (success)
-			{
-				psdAdmin = LocalAlloc(LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH);
-				if (psdAdmin != NULL)
-				{
-					success = InitializeSecurityDescriptor(psdAdmin, SECURITY_DESCRIPTOR_REVISION);
-					if (success)
-					{
-						dwACLSize = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(psidAdmin) - sizeof(DWORD);
-						pACL = (PACL)LocalAlloc(LPTR, dwACLSize);
-						if (pACL != NULL)
-						{
-							success = InitializeAcl(pACL, dwACLSize, ACL_REVISION2);
-							if (success)
-							{
-								dwAccessMask = ACCESS_READ | ACCESS_WRITE;
-								success = AddAccessAllowedAce(pACL, ACL_REVISION2, dwAccessMask, psidAdmin);
-								if (success)
-								{
-									success = SetSecurityDescriptorDacl(psdAdmin, TRUE, pACL, FALSE);
-									if (success)
-									{
-										SetSecurityDescriptorGroup(psdAdmin, psidAdmin, FALSE);
-										SetSecurityDescriptorOwner(psdAdmin, psidAdmin, FALSE);
-										
-										success = IsValidSecurityDescriptor(psdAdmin);
-										if (success)
-										{
-											dwAccessDesired = ACCESS_READ;
-											
-											GenericMapping.GenericRead = ACCESS_READ;
-											GenericMapping.GenericWrite = ACCESS_WRITE;
-											GenericMapping.GenericExecute = 0;
-											GenericMapping.GenericAll = ACCESS_READ | ACCESS_WRITE;
-											
-											AccessCheck(psdAdmin, hImpersonationToken, dwAccessDesired, &GenericMapping, &ps, &dwStructureSize, &dwStatus, &success);
-										}
-									}
-								}
-							}
-						} else {
-							success = FALSE;
-						}
-					}
-				} else {
-					success = FALSE;
-				}
-			}
-		}
+		FreeSid(pAdministratorsGroup);
+		pAdministratorsGroup = NULL;
 	}
 	
-	if (pACL) LocalFree(pACL);
-	if (psdAdmin) LocalFree(psdAdmin);
-	if (psidAdmin) FreeSid(psidAdmin);
-	if (hImpersonationToken) CloseHandle(hImpersonationToken);
-	if (hAccessToken) CloseHandle(hAccessToken);
+	if (dwError != ERROR_SUCCESS) fIsRunAsAdmin = FALSE;
 	
-	return success;
+	return fIsRunAsAdmin;
 }
 
 /* Taken from an example code made by ovidiucucu @ CodeGuru */
@@ -565,8 +508,39 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 // Our application entry point.
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
+	/* Retrieve Windows version info */
+	OSVERSIONINFOEX osvi;
+	ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+	osvi.dwMajorVersion = 5;
+	osvi.dwMinorVersion = 1;
+	osvi.wServicePackMajor = 2;
+	osvi.wServicePackMinor = 0;
+	
+	DWORDLONG dwlConditionMask = 0;
+	VER_SET_CONDITION(dwlConditionMask, VER_MAJORVERSION, VER_GREATER_EQUAL);
+	VER_SET_CONDITION(dwlConditionMask, VER_MINORVERSION, VER_GREATER_EQUAL);
+	VER_SET_CONDITION(dwlConditionMask, VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL);
+	VER_SET_CONDITION(dwlConditionMask, VER_SERVICEPACKMINOR, VER_GREATER_EQUAL);
+	
+	/* Check if we're running under Windows Vista or later */
+	if (!VerifyVersionInfo(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask))
+	{
+		DWORD dwError = GetLastError();
+		if (dwError != ERROR_OLD_WIN_VERSION)
+		{
+			wchar_t msgstr[64] = {0};
+			_snwprintf(msgstr, GET_ARRAYSIZE(msgstr), L"Unable to retrieve Windows version info (%d).", dwError);
+			MessageBox(NULL, msgstr, TEXT("Error"), MB_ICONERROR | MB_OK);
+		} else {
+			MessageBox(NULL, TEXT("This program works only under Windows XP SP2 or greater."), TEXT("Error"), MB_ICONERROR | MB_OK);
+		}
+		
+		return 0;
+	}
+	
 	/* Check if we have administrative privileges */
-	if (!IsUserAdmin())
+	if (!IsAppRunningAsAdminMode())
 	{
 		MessageBox(NULL, TEXT("Error: not running with administrative privileges.\nPlease make sure you run the program as an Admin and try again."), TEXT("Error"), MB_ICONERROR | MB_OK);
 		return 0;

@@ -27,6 +27,12 @@ Thanks to
 Changelog
 --------------
 
+**v1.71:**
+* Updated program manifest to target at more Windows versions.
+* Added a proper Windows version check. The program won't run under a Windows version older than XP SP2.
+* Fixed a bug where the DRIVE_INFO struct pointer could be freed twice, leading to a crash when trying to refresh the drives lists.
+* Simplified the code for checking if the program is running under admin mode.
+
 **v1.7:**
 * Completely revamped the EmuNAND parsing code.
 * Added compatibility with multiple NAND layouts in the same SD card. The program is now able to detect, read and write EmuNANDs that don't share the same layout as the first one.

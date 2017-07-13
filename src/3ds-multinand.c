@@ -566,7 +566,7 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 			ptr = set_file_pointer(drive, mbrsect, FILE_BEGIN);
 			if (ptr == -1)
 			{
-				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #%u in \"%s\".", mbrsect / SECTOR_SIZE, devname);
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't set the file pointer to sector #%d in \"%s\".", mbrsect / SECTOR_SIZE, devname);
 				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 				ret = -4;
 				goto out;
@@ -575,7 +575,7 @@ int WriteReadNANDName(HWND hWndParent, bool read)
 			dev_res = WriteFile(drive, buf, SECTOR_SIZE, (PDWORD)&res, NULL);
 			if (!dev_res || res != SECTOR_SIZE)
 			{
-				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't write %d bytes chunk to \"%s\" sector #%u (%d).", SECTOR_SIZE, devname, mbrsect / SECTOR_SIZE, GetLastError());
+				_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Couldn't write %d bytes chunk to \"%s\" sector #%d (%d).", SECTOR_SIZE, devname, mbrsect / SECTOR_SIZE, GetLastError());
 				MessageBox(hWndParent, msg_info, TEXT("Error"), MB_ICONERROR | MB_OK | MB_SETFOREGROUND);
 				ret = -6;
 			} else {
@@ -1219,7 +1219,11 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 		}
 #endif
 	} else {
-		if (MultiNANDDrives) free(MultiNANDDrives);
+		if (MultiNANDDrives)
+		{
+			free(MultiNANDDrives);
+			MultiNANDDrives = NULL;
+		}
 	}
 	
 	return 0;
