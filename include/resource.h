@@ -14,13 +14,13 @@
 	#define IDC_STATIC					-1
 #endif
 
-#define VER_FILEVERSION					1,7,1,0
-#define VER_FILEVERSION_STR				"v1.71"
+#define VER_FILEVERSION					1,7,2,0
+#define VER_FILEVERSION_STR				"v1.72"
 #define INTERNAL_NAME					"3ds-multinand"
 #define ORIGINAL_FILENAME				"3ds-multinand.exe"
 #define PRODUCT_NAME					"3DS Multi EmuNAND Creator"
 #define AUTHOR							"DarkMatterCore"
-#define COPYRIGHT						"2015-2017 || DarkMatterCore"
+#define COPYRIGHT						"2015-2018 || DarkMatterCore"
 
 #define MAX_NAND_NUM					4
 #define THREAD_MS_WAIT					1

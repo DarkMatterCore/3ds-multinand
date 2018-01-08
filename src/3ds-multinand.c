@@ -748,7 +748,7 @@ int GetEmuNANDInfo(HWND hWndParent, uint32_t index, int64_t base_offset, int8_t 
 		MultiNANDDrives[index].rednand[nand_idx - 1] = false;
 		
 #ifdef DEBUG_BUILD
-		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Valid NCSD header detected at offset 0x%09llX.\nConsole: %ls.\nNAND number: 1.\nNAND type: %ls.\nNAND size: %u bytes.", offset, (MultiNANDDrives[index].n3ds ? (MultiNANDDrives[index].n2ds ? L"2DS" : L"New 3DS") : L"Old 3DS"), (MultiNANDDrives[index].rednand[nand_idx - 1] ? L"RedNAND" : NAND_TYPE_STR(MultiNANDDrives[index].emunand_sizes[nand_idx - 1])), MultiNANDDrives[index].emunand_sizes[nand_idx - 1]);
+		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Valid NCSD header detected at offset 0x%09llX.\nConsole: %ls.\nNAND number: %d.\nNAND type: EmuNAND (%ls).\nNAND size: %u bytes.", offset, (MultiNANDDrives[index].n3ds ? (MultiNANDDrives[index].n2ds ? L"2DS" : L"New 3DS") : L"Old 3DS"), nand_idx, NAND_TYPE_STR(MultiNANDDrives[index].emunand_sizes[nand_idx - 1]), MultiNANDDrives[index].emunand_sizes[nand_idx - 1]);
 		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 		
@@ -833,7 +833,7 @@ int GetEmuNANDInfo(HWND hWndParent, uint32_t index, int64_t base_offset, int8_t 
 			MultiNANDDrives[index].rednand[nand_idx - 1] = true;
 			
 #ifdef DEBUG_BUILD
-			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Valid NCSD header detected at offset 0x%09llX.\nConsole: %ls.\nNAND number: 1.\nNAND type: %ls.\nNAND size: %u bytes.", offset, (MultiNANDDrives[index].n3ds ? (MultiNANDDrives[index].n2ds ? L"2DS" : L"New 3DS") : L"Old 3DS"), (MultiNANDDrives[index].rednand[nand_idx - 1] ? L"RedNAND" : NAND_TYPE_STR(MultiNANDDrives[index].emunand_sizes[nand_idx - 1])), MultiNANDDrives[index].emunand_sizes[nand_idx - 1]);
+			_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"Valid NCSD header detected at offset 0x%09llX.\nConsole: %ls.\nNAND number: %d.\nNAND type: RedNAND (%ls).\nNAND size: %u bytes.", offset, (MultiNANDDrives[index].n3ds ? (MultiNANDDrives[index].n2ds ? L"2DS" : L"New 3DS") : L"Old 3DS"), nand_idx, NAND_TYPE_STR(MultiNANDDrives[index].emunand_sizes[nand_idx - 1]), MultiNANDDrives[index].emunand_sizes[nand_idx - 1]);
 			MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 			
@@ -973,7 +973,7 @@ int ParseDrives(HWND hWndParent, bool check_fixed)
 		}
 		
 		/* GetLogicalDriveStrings() returns the total amount of characters copied to the buffer, not the number of drives */
-		/* No problem, though */
+		/* Not a problem, though */
 		drive_cnt = (res / 4);
 		
 		/* Allocate memory for the drive list */
@@ -1236,7 +1236,7 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 	FILE *nandfile = NULL;
 	uint8_t buf[SECTOR_SIZE] = {0};
 	int64_t cur_ptr = -1, fatsector = 0, nandsector = 0, offset = 0;
-	uint32_t res, index = GetDriveListIndex(isFormat), nandsize = 0, magic_word = 0;
+	uint32_t res, index = GetDriveListIndex(isFormat), nandsize = 0, magic_word = 0, real_nandsize = 0;
 	
 	uint32_t DriveLayoutLen = sizeof(DRIVE_LAYOUT_INFORMATION_EX) + (3 * sizeof(PARTITION_INFORMATION_EX));
 	DRIVE_LAYOUT_INFORMATION_EX *DriveLayout = malloc(DriveLayoutLen);
@@ -1274,14 +1274,6 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 		}
 		
 		bool is_rednand = (nandsize == (O3DS_TOSHIBA_NAND + SECTOR_SIZE) || nandsize == (O3DS_SAMSUNG_NAND + SECTOR_SIZE) || nandsize == (N3DS_SAMSUNG_NAND_1 + SECTOR_SIZE) || nandsize == (N3DS_SAMSUNG_NAND_2 + SECTOR_SIZE) || nandsize == (N3DS_TOSHIBA_NAND + SECTOR_SIZE));
-		if (is_rednand && !cfw)
-		{
-			/* Warn the user about the use of an input RedNAND */
-			dev_res = MessageBox(hWndParent, TEXT("The selected input NAND dump was previously patched with the \"drag_emunand_here\" batch script, and therefore, is a RedNAND.\n\nDo you want to inject this file as a RedNAND?\nIf you select \"No\", the NAND dump will be written as a common EmuNAND."), TEXT("Warning"), MB_ICONWARNING | MB_YESNO | MB_SETFOREGROUND);
-			
-			/*  Override configuration */
-			cfw = (dev_res == IDYES);
-		}
 		
 		/* Check if the supplied NAND dump does contain an NCSD header */
 		fseek(nandfile, (is_rednand ? (SECTOR_SIZE + 0x100) : 0x100), SEEK_SET);
@@ -1301,32 +1293,52 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 			goto out;
 		}
 		
+		if (is_rednand && !cfw)
+		{
+			/* Warn the user about the use of an input RedNAND */
+			dev_res = MessageBox(hWndParent, TEXT("The selected input NAND dump was previously patched with the \"drag_emunand_here\" batch script, and therefore, is a RedNAND.\n\nDo you want to inject this file as a RedNAND?\nIf you select \"No\", the NAND dump will be written as a common EmuNAND."), TEXT("Warning"), MB_ICONWARNING | MB_YESNO | MB_SETFOREGROUND);
+			
+			/*  Override configuration */
+			cfw = (dev_res == IDYES);
+		}
+		
 #ifdef DEBUG_BUILD
 		_snwprintf(msg_info, GET_ARRAYSIZE(msg_info), L"%s 3DS %s NAND dump detected!\nFilesize: %u bytes.\nValid NCSD header detected at offset 0x%08x.", (!n3ds ? L"Old" : L"New"), NAND_TYPE_STR(nandsize), nandsize, (is_rednand ? (SECTOR_SIZE + 0x100) : 0x100));
 		MessageBox(hWndParent, msg_info, TEXT("Information"), MB_ICONINFORMATION | MB_OK | MB_SETFOREGROUND);
 #endif
 		
-		/* Adjust NAND size to the minimum possible */
-		if (!n3ds && nandsize != O3DS_TOSHIBA_NAND)
+		if (isFormat)
 		{
-			nandsize = O3DS_TOSHIBA_NAND;
-		} else
-		if (n3ds && nandsize != N3DS_SAMSUNG_NAND_1)
-		{
-			if (isFormat)
+			/* Adjust NAND size to the minimum possible */
+			
+			if (!n3ds)
 			{
+				nandsize = O3DS_TOSHIBA_NAND;
+			} else {
 				fread(buf, SECTOR_SIZE, 1, nandfile);
 				fseek(nandfile, (is_rednand ? SECTOR_SIZE : 0), SEEK_SET);
 				
 				/* Determine the NAND CTR FAT size (2DS NAND dump check) */
 				uint32_t part_size = GetNANDPartitionsSize(buf);
 				n2ds = (part_size == O3DS_TOSHIBA_NAND);
-			} else {
-				/* Adjust 2DS status */
-				n2ds = MultiNANDDrives[index].n2ds;
+				
+				nandsize = (n2ds ? O3DS_TOSHIBA_NAND : N3DS_SAMSUNG_NAND_1);
 			}
+		} else {
+			/* Adjust 2DS status */
+			if (n3ds) n2ds = MultiNANDDrives[index].n2ds;
 			
-			nandsize = (n2ds ? O3DS_TOSHIBA_NAND : N3DS_SAMSUNG_NAND_1);
+			if (nandnum > MultiNANDDrives[index].emunand_cnt)
+			{
+				/* Verify if the size of the NAND #1 is greater than the size of the new NAND */
+				/* This will let us add zero padding after writing the whole file */
+				/* We do it this way to avoid problems with CFWs that do not support varying NAND sizes */
+				if (MultiNANDDrives[index].emunand_sizes[0] > nandsize) real_nandsize = MultiNANDDrives[index].emunand_sizes[0];
+			} else {
+				/* Verify if the size of the already injected NAND is greater than the size of the new NAND */
+				/* This will let us add zero padding after writing the whole file */
+				if (MultiNANDDrives[index].emunand_sizes[nandnum - 1] > nandsize) real_nandsize = MultiNANDDrives[index].emunand_sizes[nandnum - 1];
+			}
 		}
 		
 		/* Adjust RedNAND configuration */
@@ -1356,18 +1368,21 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 	}
 	
 	/* Generate required offsets */
-	/* Use the 'Default' / 'Minimum' layout */
 	if (!isFormat)
 	{
 		if (nandnum > MultiNANDDrives[index].emunand_cnt)
 		{
-			fatsector = round4MB(MultiNANDDrives[index].fat_offset + nandsize);
+			/* Use the 'Default' layout */
+			/* Always force the creation of a new, 4 MiB aligned offset */
+			fatsector = round4MB(MultiNANDDrives[index].fat_offset + SECTOR_SIZE + (real_nandsize > 0 ? real_nandsize : nandsize));
 			nandsector = (MultiNANDDrives[index].fat_offset + SECTOR_SIZE);
 		} else {
+			/* Use the current layout */
 			fatsector = MultiNANDDrives[index].fat_offset;
 			nandsector = (MultiNANDDrives[index].emunand_offsets[nandnum - 1] + SECTOR_SIZE);
 		}
 	} else {
+		/* Use the 'Minimum' layout */
 		fatsector = ((!n3ds || n2ds) ? (int64_t)O3DS_MINIMUM_FAT : (int64_t)N3DS_MINIMUM_FAT);
 		nandsector = (int64_t)SECTOR_SIZE;
 	}
@@ -1679,14 +1694,14 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 	uint8_t *nand_buf = malloc(NAND_BUF_SIZE);
 	
 	/* Set the progress bar range */
-	SendMessage(ProgressBar, PBM_SETRANGE, 0, MAKELPARAM(0, (nandsize / NAND_BUF_SIZE)));
+	SendMessage(ProgressBar, PBM_SETRANGE, 0, MAKELPARAM(0, ((real_nandsize > 0 ? real_nandsize : nandsize) / NAND_BUF_SIZE)));
 	
 	/* The real magic begins here */
 	for (cnt = 0; cnt < nandsize; cnt += NAND_BUF_SIZE)
 	{
 		/* Set file pointer before doing any read/write operation */
 		/* Remember to appropiately set the file pointer to the end of the NAND dump when dealing with the NCSD header (EmuNAND only) */
-		offset = (cfw ? (nandsector + cnt) : (cnt > 0 ? (nandsector - SECTOR_SIZE + cnt) : (nandsector - SECTOR_SIZE + nandsize)));
+		offset = (cfw ? (nandsector + cnt) : (cnt > 0 ? (nandsector - SECTOR_SIZE + cnt) : (nandsector - SECTOR_SIZE + (real_nandsize > 0 ? real_nandsize : nandsize))));
 		cur_ptr = set_file_pointer(drive, offset, FILE_BEGIN);
 		if (cur_ptr == -1) break;
 		
@@ -1715,23 +1730,34 @@ void InjectExtractNAND(wchar_t *fname, HWND hWndParent, bool isFormat)
 			}
 			
 			/* Check if this is the last chunk */
-			if (nandsize == cnt + NAND_BUF_SIZE)
+			if (nandsize == (cnt + NAND_BUF_SIZE))
 			{
+				if (real_nandsize > 0)
+				{
+					/* Wipe the rest of the data from the previous NAND if its size was greater than the size of the NAND we just injected */
+					
+					uint8_t null_buf[NAND_BUF_SIZE] = {0};
+					
+					uint32_t diff_cnt, nand_diff = (real_nandsize - nandsize);
+					
+					for (diff_cnt = 0; diff_cnt < nand_diff; diff_cnt += NAND_BUF_SIZE)
+					{
+						offset = (cfw ? (nandsector + nandsize + diff_cnt) : (nandsector - SECTOR_SIZE + nandsize + diff_cnt));
+						cur_ptr = set_file_pointer(drive, offset, FILE_BEGIN);
+						if (cur_ptr == -1) break;
+						
+						dev_res = WriteFile(drive, null_buf, NAND_BUF_SIZE, (PDWORD)&res, NULL);
+						if (!dev_res || res != NAND_BUF_SIZE) break;
+						
+						/* Update the progress bar */
+						if (nand_diff > (diff_cnt + NAND_BUF_SIZE)) SendMessage(ProgressBar, PBM_STEPIT, 0, 0);
+					}
+					
+					if (cur_ptr == -1 || !dev_res || res != NAND_BUF_SIZE) break;
+				}
+				
 				/* Write the dummy footer */
 				if (!write_dummy_data(drive, (cfw ? (offset + NAND_BUF_SIZE) : (offset + NAND_BUF_SIZE + SECTOR_SIZE)))) break;
-				
-				/* Wipe the NCSD header from the previous NAND if its size was greater than the size of the NAND we just injected */
-				if (nandnum <= MultiNANDDrives[index].emunand_cnt && nandsize < MultiNANDDrives[index].emunand_sizes[nandnum - 1] && !MultiNANDDrives[index].rednand[nandnum - 1])
-				{
-					uint8_t null_buf[SECTOR_SIZE] = {0};
-					
-					offset = (nandsector - SECTOR_SIZE + MultiNANDDrives[index].emunand_sizes[nandnum - 1]);
-					cur_ptr = set_file_pointer(drive, offset, FILE_BEGIN);
-					if (cur_ptr == -1) break;					
-					
-					dev_res = WriteFile(drive, null_buf, SECTOR_SIZE, (PDWORD)&res, NULL);
-					if (!dev_res || res != SECTOR_SIZE) break;
-				}
 			}
 		} else {
 			/* Fill buffer (SD) */

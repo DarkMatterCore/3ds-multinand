@@ -27,6 +27,11 @@ Thanks to
 Changelog
 --------------
 
+**v1.72:**
+* The program now always forces the creation of a new, 4 MiB aligned offset for the FAT partition when injecting a new NAND. This fixes a bug where the first sector from the new FAT partition would have been overwritten with a dummy footer if the generated offset for the partition was already aligned to a 4 MiB boundary. Thanks to Kazuma77 for testing.
+* If a new NAND is injected and the size of the previous NAND was greater than the size of the new NAND, the stored NAND dump will be zero padded to match the previous NAND size right after the injection process is finished.
+* Now, only the format procedure defaults to the minimum NAND size possible. The rest of the NAND inject operations use the default NAND size layout to avoid problems.
+
 **v1.71:**
 * Updated program manifest to target at more Windows versions.
 * Added a proper Windows version check. The program won't run under a Windows version older than XP SP2.
